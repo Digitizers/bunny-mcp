@@ -1,0 +1,47 @@
+{
+  "name": "bunnycdn-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for BunnyCDN — manage pull zones, DNS, storage, video streaming, edge scripting, security, and more.",
+  "type": "module",
+  "bin": {
+    "bunnycdn-mcp": "./index.js"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./helpers": "./lib/helpers.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/*.test.js",
+    "prepublishOnly": "npm test"
+  },
+  "keywords": [
+    "mcp", "bunnycdn", "bunny", "cdn", "dns", "streaming", "storage",
+    "edge", "model-context-protocol", "claude", "copilot"
+  ],
+  "author": "anvme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anvme/bunnycdn-mcp.git"
+  },
+  "homepage": "https://github.com/anvme/bunnycdn-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/anvme/bunnycdn-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "axios": "^1.13.5",
+    "zod": "^3.25.76"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ]
+}
