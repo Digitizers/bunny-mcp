@@ -24,6 +24,8 @@ It is an **allow-list, not a deny-list**. Stripping known secret names fails the
 
 It **fails closed**. A path with no declared shape returns no data and an error naming the path, rather than the raw payload.
 
+It applies **inside a value, not only to it.** A URL keeps scheme, host, port and path; userinfo, query and fragment go. The first version of that scrubber removed `user:password@` and kept the rest — a deny-list wearing a scrubber's coat, which closed the one place a credential was known to sit and let `?token=…` walk through. And a free-form bag is a bag whether it arrives as an object or a string: `CustomHTML` is dropped for the same reason `metaTags` is.
+
 It **does not vet structure by naming its parent.** A bare field name may only carry a scalar, or an array of them; an object survives only where a nested shape is declared for it. Every leak found while reviewing this fork lived one level below a name someone had already vetted — `Hostnames` looked safe and held the TLS private key; `EdgeRules` was given a shape and `ExtraActions` inside it still carried the very parameter that shape existed to drop.
 
 ### 2. Write tools are withheld unless you ask for them

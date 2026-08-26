@@ -326,24 +326,7 @@ test("operator-authored markup does not come back", () => {
   assert.equal(out.data.Name, "clips");
 });
 
-test("an authenticated origin keeps its address and loses its password", () => {
-  // Bunny accepts an authenticated origin, and the credentials live inside the
-  // URL. Dropping the field hides where the zone points; keeping it whole
-  // publishes the origin's password. So the field comes back, scrubbed.
-  const out = projectResponse("/pullzone/1", {
-    Id: 1, OriginUrl: "https://svc:s3cret@origin.example.com/path",
-  });
-  assert.equal(out.data.OriginUrl, "https://origin.example.com/path");
-  assert.ok(!out.data.OriginUrl.includes("s3cret"));
 
-  const plain = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "https://origin.example.com" });
-  assert.equal(plain.data.OriginUrl, "https://origin.example.com", "an ordinary origin is untouched");
-});
-
-test("an unparseable origin with userinfo is withheld rather than guessed at", () => {
-  const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "not a url: svc:s3cret@host" });
-  assert.ok(!String(out.data.OriginUrl).includes("s3cret"));
-});
 
 test("an edge-script variable returns no value under any of its names", () => {
   // Dropping `Value` alone left the credential reachable through `DefaultValue`,
@@ -370,4 +353,35 @@ test("a field called Value is not automatically a secret", () => {
 
   const rec = projectResponse("/dnszone/1/records/2", { Id: 2, Type: 0, Name: "www", Value: "203.0.113.4" });
   assert.equal(rec.data.Value, "203.0.113.4");
+});
+
+test("a URL keeps where it points and nothing else", () => {
+  // The first scrubber removed `user:password@` and kept the rest — a deny-list
+  // wearing a scrubber's coat. It closed the one place a credential was known to
+  // sit and left every other one open, so `?token=…` walked straight through.
+  const cases = [
+    ["https://svc:s3cret@origin.example.com/path?token=abc#frag", "https://origin.example.com/path"],
+    ["https://origin.example.com/file?token=secret", "https://origin.example.com/file"],
+    ["https://origin.example.com", "https://origin.example.com"],
+    ["https://origin.example.com:8443/base", "https://origin.example.com:8443/base"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: input });
+    assert.equal(out.data.OriginUrl, expected, input);
+  }
+});
+
+test("an unparseable URL carrying a query or userinfo is withheld", () => {
+  const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "weird?token=abc" });
+  assert.ok(!String(out.data.OriginUrl).includes("token=abc"));
+
+  const bare = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "origin.example.com" });
+  assert.equal(bare.data.OriginUrl, "origin.example.com", "a bare host is harmless");
+});
+
+test("a private registry URL goes through the same reduction as an origin", () => {
+  const out = projectResponse("/mc/registries", [
+    { id: "r", name: "priv", registryUrl: "https://u:p@registry.example.com/v2?token=t", username: "u" },
+  ]);
+  assert.equal(out.data[0].registryUrl, "https://registry.example.com/v2");
 });
