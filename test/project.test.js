@@ -748,3 +748,30 @@ test("every PASSTHROUGH route is a status or a statistic, never a resource", () 
   );
   assert.deepEqual(resourceish, [], `these passthrough routes may answer with a resource: ${resourceish.join(", ")}`);
 });
+
+test("every string in a diagnostic is scrubbed, not only the ones named Url", () => {
+  // `Path` is the same request target under another name. Scrubbing Url and the
+  // prose while leaving it was the fifth time this file fixed one member of the
+  // URL family and left a sibling — the SHAPE carries the rule now.
+  const out = projectResponse("/12345/08-26-2026", [{
+    Timestamp: 1,
+    Url: "https://origin/x?token=secret",
+    Path: "/callback?token=secret",
+    StatusCode: 502,
+    ErrorCode: "http_timeout",
+  }]);
+  const e = out.data[0];
+  assert.equal(e.Path, "/callback");
+  assert.equal(e.Url, "https://origin/x");
+  assert.equal(e.StatusCode, 502, "numbers are untouched");
+  assert.equal(e.ErrorCode, "http_timeout", "and a code with no query survives whole");
+});
+
+test("a pull zone's structured cache-error settings come back", () => {
+  const out = projectResponse("/pullzone/1", {
+    Id: 1,
+    CacheErrorResponses: [{ StatusCode: 502, CacheAge: 30, Enabled: true, Unvetted: "x" }],
+  });
+  assert.equal(out.data.CacheErrorResponses[0].CacheAge, 30);
+  assert.equal("Unvetted" in out.data.CacheErrorResponses[0], false);
+});
