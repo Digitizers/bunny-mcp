@@ -7,6 +7,7 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { createCache } from "./lib/helpers.js";
+import { guardRegistration, installProjection, readOnlyFromEnv, allowSourceFromEnv } from "./lib/guard.js";
 import { registerAccountTools } from "./lib/tools/account.js";
 import { registerPullZoneTools } from "./lib/tools/pull-zones.js";
 import { registerDnsTools } from "./lib/tools/dns-zones.js";
@@ -80,6 +81,18 @@ const storageHttp = BUNNY_STORAGE_KEY ? axios.create({
   headers: { "User-Agent": ua, "AccessKey": BUNNY_STORAGE_KEY, "Accept": "*/*" },
 }) : null;
 
+// ─── Redaction ───────────────────────────────────────────────────────────────
+//
+// Installed on every client before a single tool is registered, so no tool can
+// see an unprojected payload. See lib/project.js for what survives and why.
+
+const allowSource = allowSourceFromEnv();
+
+installProjection(coreHttp, "api", allowSource);
+installProjection(originHttp, "api", allowSource);
+if (streamHttp) installProjection(streamHttp, "api", allowSource);
+if (storageHttp) installProjection(storageHttp, "storage", allowSource);
+
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
 const cache = createCache({ ttl: 3 * 60 * 1000, max: 300 });
@@ -93,23 +106,42 @@ const server = new McpServer({
 });
 
 // ─── Register Tools ──────────────────────────────────────────────────────────
+//
+// In read-only mode (the default) write-capable tools are never registered, so
+// they are absent from tools/list rather than merely annotated as risky.
 
-registerAccountTools(server, coreHttp, cache);
-registerPullZoneTools(server, coreHttp, cache);
-registerDnsTools(server, coreHttp, cache);
-registerStorageZoneTools(server, coreHttp, cache);
-registerStreamLibraryTools(server, coreHttp, cache);
-registerEdgeScriptingTools(server, coreHttp, cache);
-registerShieldTools(server, coreHttp, cache);
-registerMagicContainerTools(server, coreHttp, cache);
-registerOriginErrorTools(server, originHttp, cache);
+const readOnly = readOnlyFromEnv();
+const { server: reg, withheld } = guardRegistration(server, readOnly);
+
+registerAccountTools(reg, coreHttp, cache);
+registerPullZoneTools(reg, coreHttp, cache);
+registerDnsTools(reg, coreHttp, cache);
+registerStorageZoneTools(reg, coreHttp, cache);
+registerStreamLibraryTools(reg, coreHttp, cache);
+registerEdgeScriptingTools(reg, coreHttp, cache);
+registerShieldTools(reg, coreHttp, cache);
+registerMagicContainerTools(reg, coreHttp, cache);
+registerOriginErrorTools(reg, originHttp, cache);
 
 if (streamHttp) {
-  registerStreamVideoTools(server, streamHttp, cache);
-  registerStreamCollectionTools(server, streamHttp, cache);
+  registerStreamVideoTools(reg, streamHttp, cache);
+  registerStreamCollectionTools(reg, streamHttp, cache);
 }
 if (storageHttp) {
-  registerStorageFileTools(server, storageHttp, cache);
+  registerStorageFileTools(reg, storageHttp, cache);
+}
+
+if (!allowSource) {
+  process.stderr.write(
+    "bunny-mcp: edge-script source is withheld. Set BUNNY_ALLOW_SOURCE=1 to return it.\n"
+  );
+}
+
+if (readOnly) {
+  process.stderr.write(
+    `bunny-mcp: read-only mode — ${withheld.length} write-capable tools withheld. ` +
+    "Set BUNNY_READONLY=0 to register them.\n"
+  );
 }
 
 // ─── Start ───────────────────────────────────────────────────────────────────

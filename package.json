@@ -1,10 +1,10 @@
 {
-  "name": "bunnycdn-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for BunnyCDN — manage pull zones, DNS, storage, video streaming, edge scripting, security, and more.",
+  "name": "bunny-mcp",
+  "version": "1.1.0",
+  "description": "MCP server for Bunny.net — secret-redacting and read-only by default. Hardened fork of anvme/bunnycdn-mcp.",
   "type": "module",
   "bin": {
-    "bunnycdn-mcp": "./index.js"
+    "bunny-mcp": "./index.js"
   },
   "main": "index.js",
   "exports": {
@@ -17,18 +17,27 @@
     "prepublishOnly": "npm test"
   },
   "keywords": [
-    "mcp", "bunnycdn", "bunny", "cdn", "dns", "streaming", "storage",
-    "edge", "model-context-protocol", "claude", "copilot"
+    "mcp",
+    "bunnycdn",
+    "bunny",
+    "cdn",
+    "dns",
+    "streaming",
+    "storage",
+    "edge",
+    "model-context-protocol",
+    "claude",
+    "copilot"
   ],
-  "author": "anvme",
+  "author": "Digitizers",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/anvme/bunnycdn-mcp.git"
+    "url": "git+https://github.com/Digitizers/bunny-mcp.git"
   },
-  "homepage": "https://github.com/anvme/bunnycdn-mcp#readme",
+  "homepage": "https://github.com/Digitizers/bunny-mcp#readme",
   "bugs": {
-    "url": "https://github.com/anvme/bunnycdn-mcp/issues"
+    "url": "https://github.com/Digitizers/bunny-mcp/issues"
   },
   "engines": {
     "node": ">=18.0.0"
