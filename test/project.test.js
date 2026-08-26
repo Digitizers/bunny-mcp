@@ -464,3 +464,51 @@ test("a WAF rule's action parameters never come back, scalar or object", () => {
     assert.equal("actionParameters" in out.data, false, `scalar or object: ${typeof params}`);
   }
 });
+
+test("every URL-valued field goes through the scrubber", () => {
+  // The URL class has produced two findings (an origin's userinfo, then its
+  // query). Rather than remember to scrub the next one, this asserts the rule:
+  // a field whose NAME says it holds a URL must declare the scrubber.
+  const src = readFileSync(new URL("../lib/project.js", import.meta.url), "utf-8");
+  const shapes = src.slice(0, src.indexOf("const ROUTES = ["));
+
+  const unscrubbed = [];
+  for (const m of shapes.matchAll(/"([A-Za-z0-9_]*(?:Url|URL|url))"/g)) {
+    // A bare "Name" entry — a declared one reads ["Name", scrubUrl] and so the
+    // quoted name is preceded by `[`.
+    const before = shapes.slice(Math.max(0, m.index - 2), m.index);
+    if (!before.includes("[")) unscrubbed.push(m[1]);
+  }
+  assert.deepEqual(unscrubbed, [], `URL fields not routed through scrubUrl: ${unscrubbed.join(", ")}`);
+});
+
+test("a private repository URL loses its access token", () => {
+  const out = projectResponse("/compute/script/3", {
+    Id: 3, Name: "s",
+    RepositoryUrl: "https://x-access-token:ghp_secret@github.com/org/repo.git",
+    IntegrationType: 1,
+  });
+  assert.equal(out.data.RepositoryUrl, "https://github.com/org/repo.git");
+  assert.equal(out.data.IntegrationType, 1);
+});
+
+test("a DNS zone reports DNSSEC state and the public DS material, never the private key", () => {
+  const out = projectResponse("/dnszone/1", {
+    Id: 1, Domain: "example.com",
+    DnsSecEnabled: true, DnsSecStatus: 2, DnsSecDsRecord: "2371 13 2 ABCDEF",
+    DnsSecPublicKey: "mFWF+p...", DnsSecPrivateKey: "-----BEGIN PRIVATE KEY-----",
+  });
+  assert.equal(out.data.DnsSecEnabled, true, "the status is what the tool promises");
+  assert.equal(out.data.DnsSecDsRecord, "2371 13 2 ABCDEF", "a DS record is published in the parent zone");
+  assert.equal("DnsSecPrivateKey" in out.data, false);
+});
+
+test("an account reports which products are on, and no key", () => {
+  const out = projectResponse("/user", {
+    Id: 1, Email: "a@b.c", IsCdnEnabled: true, IsStreamEnabled: false,
+    FeatureFlags: ["beta"], ApiKey: "the-account-key",
+  });
+  assert.equal(out.data.IsCdnEnabled, true);
+  assert.deepEqual(out.data.FeatureFlags, ["beta"]);
+  assert.equal("ApiKey" in out.data, false);
+});
