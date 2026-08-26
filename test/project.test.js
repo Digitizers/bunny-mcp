@@ -344,3 +344,30 @@ test("an unparseable origin with userinfo is withheld rather than guessed at", (
   const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "not a url: svc:s3cret@host" });
   assert.ok(!String(out.data.OriginUrl).includes("s3cret"));
 });
+
+test("an edge-script variable returns no value under any of its names", () => {
+  // Dropping `Value` alone left the credential reachable through `DefaultValue`,
+  // a sibling whose name sounds like a placeholder and whose content is the
+  // configured value: `API_KEY=sk_live_...` IS a default value.
+  const out = projectResponse("/compute/script/1/variables", [
+    { Id: 3, Name: "API_KEY", Required: true, Value: "sk_live_x", DefaultValue: "sk_live_x" },
+  ]);
+  const v = out.data[0];
+  assert.equal(v.Name, "API_KEY", "the name is the point of listing them");
+  assert.equal(v.Required, true);
+  assert.equal("Value" in v, false);
+  assert.equal("DefaultValue" in v, false);
+});
+
+test("a field called Value is not automatically a secret", () => {
+  // The counter-case, so the rule above is not read as "drop anything named
+  // Value". A hostname's Value is the hostname; a DNS record's Value is data
+  // the whole internet can already query.
+  const zone = projectResponse("/pullzone/1", {
+    Id: 1, Hostnames: [{ Id: 2, Value: "cdn.example.com", HasCertificate: true }],
+  });
+  assert.equal(zone.data.Hostnames[0].Value, "cdn.example.com");
+
+  const rec = projectResponse("/dnszone/1/records/2", { Id: 2, Type: 0, Name: "www", Value: "203.0.113.4" });
+  assert.equal(rec.data.Value, "203.0.113.4");
+});
