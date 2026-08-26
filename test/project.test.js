@@ -851,3 +851,18 @@ test("whitespace and punctuation survive the round trip", () => {
   const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
   assert.equal(out.data[0].Message, msg);
 });
+
+test("a URL wrapped in punctuation is still reduced", () => {
+  // Peeling only the trailing punctuation was half the job: a URL quoted in
+  // prose is as often wrapped, and a leading `(` defeated every anchored check
+  // inside the token.
+  const cases = [
+    ["(https://user:pass@origin.example/file)", "(https://origin.example/file)"],
+    ['"https://user:pass@origin.example/file"', '"https://origin.example/file"'],
+    ["[//user:pass@origin.example/f?token=x]", "[//origin.example/f]"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
+    assert.equal(out.data[0].Message, expected, input);
+  }
+});
