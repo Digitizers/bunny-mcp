@@ -121,3 +121,50 @@ test("a more specific route wins over its collection", () => {
   assert.equal(shapeFor("/pullzone/1/purgeCache"), PASSTHROUGH);
   assert.notEqual(shapeFor("/pullzone/1"), PASSTHROUGH);
 });
+
+// ─── Envelopes ───────────────────────────────────────────────────────────────
+
+test("a camel-case Stream envelope is recognised, not flattened to nothing", () => {
+  // Round-2 P2: Bunny is two APIs wearing one name. The management API answers
+  // `{ Items, CurrentPage, ... }`; Stream answers `{ items, currentPage, ... }`.
+  // Matching only the first treated a whole video listing as one resource,
+  // matched none of its fields, and returned `{}` — every video discarded while
+  // the call reported success.
+  const raw = {
+    totalItems: 2,
+    currentPage: 1,
+    itemsPerPage: 100,
+    items: [
+      { guid: "a", title: "one", views: 3, thumbnailFileName: "t.jpg" },
+      { guid: "b", title: "two", views: 9 },
+    ],
+  };
+  const out = projectResponse("/library/5/videos", raw);
+  assert.equal(out.ok, true);
+  assert.equal(out.data.items.length, 2, "every video survives");
+  assert.equal(out.data.items[0].title, "one");
+  assert.equal(out.data.totalItems, 2, "the page counters survive too");
+  assert.equal(out.data.currentPage, 1);
+});
+
+test("both envelope casings project their entries", () => {
+  const upper = projectResponse("/pullzone", { Items: [{ Id: 1, Name: "z", ZoneSecurityKey: "s" }], TotalItems: 1 });
+  assert.equal("ZoneSecurityKey" in upper.data.Items[0], false);
+
+  const lower = projectResponse("/library/5/collections", { items: [{ guid: "g", name: "c" }], totalItems: 1 });
+  assert.equal(lower.data.items[0].name, "c");
+});
+
+test("a shape that fits nothing raises instead of returning an empty object", () => {
+  // Silence is what turned the envelope bug into a bug rather than an error.
+  assert.throws(
+    () => projectResponse("/pullzone/1", { totallyDifferent: 1, alsoUnexpected: 2 }),
+    /matched no fields/,
+  );
+});
+
+test("an empty payload is not mistaken for a mismatched shape", () => {
+  const out = projectResponse("/pullzone/1", {});
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.data, {});
+});
