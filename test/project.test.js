@@ -644,7 +644,7 @@ test("every PASSTHROUGH route is a status or a statistic, never a resource", () 
   assert.ok(passthrough.length > 0, "there should still be some");
 
   const resourceish = passthrough.filter((r) =>
-    !/statistic|metric|overview|purge|Hostname|setEdgeRuleEnabled|heatmap|reencode|code|billing|country|region|deploy|undeploy|restart|start|stop|profiles/i.test(r),
+    !/statistic|metric|overview|purge|Hostname|setEdgeRuleEnabled|heatmap|reencode|code|billing|country|region|deploy|undeploy|restart|start|stop/i.test(r),
   );
   assert.deepEqual(resourceish, [], `these passthrough routes may answer with a resource: ${resourceish.join(", ")}`);
 
@@ -830,4 +830,38 @@ test("a scrubbed field that arrives as text still comes back scrubbed", () => {
   ]);
   assert.equal(out.data[0].Url, "https://o/x");
   assert.equal(out.data[0].Message, "failed for (withheld: URL)");
+});
+
+test("a WAF profile is projected like the rules beside it", () => {
+  // Round-40 P1. bunny_get_waf_rules fetches rules AND profiles and returns
+  // both in one response; the rules went through WAF_RULE and the profiles were
+  // PASSTHROUGH. Same tool, same security configuration, half of it exempt.
+  const out = projectResponse("/shield/waf/profiles/7", [{
+    id: 1,
+    name: "OWASP CRS",
+    enabled: true,
+    rulesetType: "managed",
+    thresholdScore: 5,
+    // Free-form operator text and rule configuration, excluded on the sibling
+    // shape for the same reason they are excluded here.
+    description: "prod profile, bypass header X-Auth: sk_live_secret",
+    ruleConfiguration: { header: "X-Auth: sk_live_secret" },
+    // Anything Bunny adds that nobody has read.
+    Unvetted: "leaked",
+  }]);
+  assert.equal(out.ok, true);
+  assert.equal(out.data[0].name, "OWASP CRS");
+  assert.equal(out.data[0].thresholdScore, 5);
+  for (const gone of ["description", "ruleConfiguration", "Unvetted"]) {
+    assert.equal(gone in out.data[0], false, `${gone} must not survive the profile projection`);
+  }
+});
+
+test("a WAF profile's nested rules take the rule shape", () => {
+  const out = projectResponse("/shield/waf/profiles/7", [{
+    id: 1,
+    rules: [{ id: 9, name: "sqli", enabled: true, actionParameters: { header: "X-Auth: secret" } }],
+  }]);
+  assert.equal(out.data[0].rules[0].name, "sqli");
+  assert.equal("actionParameters" in out.data[0].rules[0], false, "the rule shape's exclusions apply inside a profile too");
 });
