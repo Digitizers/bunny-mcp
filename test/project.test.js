@@ -691,6 +691,7 @@ test("every shape that ever leaked is withheld whole", () => {
     "?eyJhbGciOiJIUzI1NiJ9",                                // query-only, opaque
     "?abc123",                                              // short and opaque — a PIN is a secret too
     "#abc123",
+    "?123456",                                              // a PIN is digits, and still a secret
   ];
   for (const target of leaked) {
     const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: `failed for ${target} after 10s` }]);
@@ -707,6 +708,7 @@ test("a plain target and ordinary prose are returned as written", () => {
     "timeout after 10s: origin did not respond",
     "see section #3 for details",
     "see section #42 for details",
+    "wat ? really",
     "why? because it timed out",
     "is it ready? not yet",
     "ratio was 3.5 and rising",
