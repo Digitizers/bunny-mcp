@@ -21,42 +21,77 @@ const TOOLS_DIR = join(__dirname, "..", "lib", "tools");
  * day someone remembers.
  */
 function pathsUsedByTools() {
-  const found = new Set();
+  const found = [];
 
   for (const file of readdirSync(TOOLS_DIR).filter((f) => f.endsWith(".js"))) {
     const src = readFileSync(join(TOOLS_DIR, file), "utf-8");
+    const enums = enumParams(src);
 
     // Template literals and plain strings that look like API paths, whether
     // passed straight to the client or assigned to a variable first (the edge
     // scripting tools build `basePath` and then append to it).
     for (const m of src.matchAll(/[`"'](\/[A-Za-z0-9_\-./${}]*)[`"']/g)) {
-      found.add(m[1]);
+      found.push({ template: m[1], enums });
     }
   }
-  return [...found];
+  return found;
 }
 
-/** `${id}` and friends stand in for a value; give the matcher a plausible one. */
-function concretise(template) {
-  return template
-    .replace(/\$\{qs\}/g, "")
+/**
+ * The `z.enum([...])` parameters a tool module declares, by name.
+ *
+ * A path segment interpolated from an enum has a KNOWN set of values, and the
+ * route table can name them — `/mc/apps/{id}/(deploy|undeploy|restart)` rather
+ * than a wildcard over everything Bunny may hang off an app. That pinning is
+ * only checkable if this test knows the same list, so it reads it from the tool
+ * rather than being told: an action added to the enum then fails here, which is
+ * the notice that the route needs widening by hand.
+ */
+function enumParams(src) {
+  const params = new Map();
+  for (const m of src.matchAll(/(\w+):\s*z\.enum\(\[([^\]]*)\]\)/g)) {
+    const members = [...m[2].matchAll(/["'`]([^"'`]+)["'`]/g)].map((x) => x[1]);
+    if (members.length) params.set(m[1], members);
+  }
+  return params;
+}
+
+/**
+ * Every concrete path a template can produce.
+ *
+ * An id stands in for any value, so one plausible id is enough. An ENUM does
+ * not: it has a known, finite set, and substituting a single made-up `abc` for
+ * it was how a pinned route read as uncovered — and, the other way round, how
+ * an unpinned one could read as covered. Each enum member is expanded and every
+ * resulting path must be declared.
+ */
+function concretise(template, enums = new Map()) {
+  let paths = [template.replace(/\$\{qs\}/g, "")];
+
+  for (const [name, members] of enums) {
+    const slot = () => new RegExp(`\\$\\{${name}\\}`, "g");
+    if (!paths.some((p) => slot().test(p))) continue;
+    paths = paths.flatMap((p) => members.map((v) => p.replace(slot(), v)));
+  }
+
+  return paths.map((p) => p
     .replace(/\$\{[^}]*(?:id|Id|ID)\}/g, "12345")
-    .replace(/\$\{[^}]*\}/g, "abc");
+    .replace(/\$\{[^}]*\}/g, "abc"));
 }
 
 test("every path the tools can request has a declared shape", () => {
   const undeclared = [];
 
-  for (const template of pathsUsedByTools()) {
-    const path = concretise(template);
-
-    // Not every quoted string starting with "/" is a request path — cache keys,
-    // descriptions and regexes live in these files too. A path segment that is
-    // not a known Bunny root is not this test's business.
-    if (!/^\/(pullzone|purge|storagezone|dnszone|library|videolibrary|compute|shield|mc|user|billing|statistics|country|region|search)\b/i.test(path)) {
-      continue;
+  for (const { template, enums } of pathsUsedByTools()) {
+    for (const path of concretise(template, enums)) {
+      // Not every quoted string starting with "/" is a request path — cache keys,
+      // descriptions and regexes live in these files too. A path segment that is
+      // not a known Bunny root is not this test's business.
+      if (!/^\/(pullzone|purge|storagezone|dnszone|library|videolibrary|compute|shield|mc|user|billing|statistics|country|region|search)\b/i.test(path)) {
+        continue;
+      }
+      if (shapeFor(path) === null) undeclared.push(`${template}  ->  ${path}`);
     }
-    if (shapeFor(path) === null) undeclared.push(`${template}  ->  ${path}`);
   }
 
   assert.deepEqual(

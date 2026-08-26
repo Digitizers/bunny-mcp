@@ -644,9 +644,22 @@ test("every PASSTHROUGH route is a status or a statistic, never a resource", () 
   assert.ok(passthrough.length > 0, "there should still be some");
 
   const resourceish = passthrough.filter((r) =>
-    !/statistic|metric|overview|purge|Hostname|setEdgeRuleEnabled|heatmap|reencode|code|billing|country|region|deploy|undeploy|restart|start|stop|\[a-z-\]\+|profiles/i.test(r),
+    !/statistic|metric|overview|purge|Hostname|setEdgeRuleEnabled|heatmap|reencode|code|billing|country|region|deploy|undeploy|restart|start|stop|profiles/i.test(r),
   );
   assert.deepEqual(resourceish, [], `these passthrough routes may answer with a resource: ${resourceish.join(", ")}`);
+
+  // And the route must NAME what it lets through. The check above reads the
+  // route's text for a status-ish word, so an open segment — `[a-z-]+`, `.*`,
+  // `.+` — passes it by spelling paths nobody has read: `/mc/apps/{id}/[a-z-]+`
+  // was declared safe on the strength of three lifecycle actions and matched
+  // every other path Bunny may hang off an app. The exemption for it had been
+  // added to the allow-list above, which is this test being taught to accept
+  // the thing it exists to catch.
+  //
+  // A trailing `?` group is not the same thing: `(\/[^/]+)?` still names the
+  // shape of what it admits. What is banned is a segment that matches anything.
+  const openEnded = passthrough.filter((r) => /\[a-z-\]\+|\.\*|\.\+/.test(r));
+  assert.deepEqual(openEnded, [], `a PASSTHROUGH route must name its endpoints, not match a namespace: ${openEnded.join(", ")}`);
 });
 
 
