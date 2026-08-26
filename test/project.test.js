@@ -798,3 +798,33 @@ test("a diagnostic with no credential in it is returned as written", () => {
     assert.equal(out.data[0].Message, msg);
   }
 });
+
+test("a credential suffix goes whatever its internal syntax", () => {
+  // Both patterns assumed a syntax: the userinfo one that a password holds no
+  // colon, the suffix one that a query is `key=value`. A bearer token in a
+  // query has no `=`, and a password may contain anything.
+  const cases = [
+    ["user:pa:ss@origin.example/file failed", "origin.example/file failed"],
+    ["origin.example/file?eyJhbGciOiJIUzI1NiJ9 failed", "origin.example/file failed"],
+    ["origin.example/file#secret-token failed", "origin.example/file failed"],
+    ["https://user:pa:ss@[2001:db8::1]/f#tok failed", "https://[2001:db8::1]/f failed"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
+    assert.equal(out.data[0].Message, expected, input);
+  }
+});
+
+test("prose keeps its punctuation", () => {
+  // The suffix rule fires only where the token it hangs off looks like a path
+  // or a host — it needs a `/` or a `.` in it — so ordinary writing survives.
+  for (const msg of [
+    "see section #3 for details",
+    "why? because it timed out",
+    "timeout after 10s: origin did not respond",
+    "ratio was 3.5 and rising",
+  ]) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
+    assert.equal(out.data[0].Message, msg, msg);
+  }
+});
