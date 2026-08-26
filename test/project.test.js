@@ -536,3 +536,18 @@ test("a release is identified by when and which, never by its note", () => {
   assert.equal(rel.DatePublished, "2026-08-26");
   assert.equal("Note" in rel, false, "bunny_publish_edge_script accepts an arbitrary note");
 });
+
+test("a REQUEST_URI operand keeps its path and loses its query", () => {
+  // A URI includes its query, and `/callback?token=secret` is an ordinary thing
+  // to write a rule against — REQUEST_PATH does not have that problem, which is
+  // why the two cannot share one verdict.
+  const out = projectResponse("/shield/waf/rules/7", {
+    id: 1, name: "r",
+    variables: [
+      { type: "REQUEST_URI", matchValues: ["/callback?token=secret", "/plain"] },
+      { type: "REQUEST_PATH", matchValues: ["/admin"] },
+    ],
+  });
+  assert.deepEqual(out.data.variables[0].matchValues, ["/callback", "/plain"]);
+  assert.deepEqual(out.data.variables[1].matchValues, ["/admin"], "a path has no query to lose");
+});
