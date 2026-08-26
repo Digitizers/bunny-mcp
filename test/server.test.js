@@ -109,3 +109,70 @@ describe("bunny-mcp server — BUNNY_READONLY=0", () => {
     }
   });
 });
+
+// The README's catalog and its counts describe THIS server, and a document that
+// describes code drifts from it silently. Two review rounds were spent on that
+// drift — a missing tool row, then a count that still described the mode the
+// server had stopped defaulting to. So the numbers are not maintained by hand
+// here: they are derived from the running server and asserted against the file.
+describe("README describes the server it ships with", () => {
+  // Three boots, once for the whole suite: the full catalog, the core-only
+  // catalog, and what a default install actually exposes.
+  const ALL = { BUNNY_STREAM_KEY: "y", BUNNY_STORAGE_KEY: "z", BUNNY_READONLY: "0" };
+  let readme, every, coreOnly, byDefault;
+
+  before(async () => {
+    const { readFile } = await import("node:fs/promises");
+    readme = await readFile(join(__dirname, "..", "README.md"), "utf8");
+    every = await boot(ALL);
+    coreOnly = await boot({ BUNNY_READONLY: "0" });
+    byDefault = await boot({ BUNNY_STREAM_KEY: "y", BUNNY_STORAGE_KEY: "z" });
+  });
+
+  after(async () => {
+    for (const b of [every, coreOnly, byDefault]) if (b) await b.client.close();
+  });
+
+  /** Every `| \`bunny_x\` |` row in the catalog table, in order. */
+  function catalogued(md) {
+    return [...md.matchAll(/^\| `(bunny_[a-z_]+)` \|/gm)].map((m) => m[1]);
+  }
+
+  it("catalogues every registered tool, and nothing that is not one", () => {
+    const names = every.names;
+    const rows = catalogued(readme);
+    const missing = names.filter((n) => !rows.includes(n));
+    const phantom = rows.filter((n) => !names.includes(n));
+    assert.deepEqual(missing, [], "registered but absent from the README catalog");
+    assert.deepEqual(phantom, [], "in the README catalog but not registered");
+  });
+
+  it("states the totals the server actually registers", () => {
+    const all = every.names.length;
+    const core = coreOnly.names.length;
+    const dflt = byDefault.names.length;
+
+    // Each claim is quoted from the README so a failure names the sentence to
+    // fix, rather than reporting that some number somewhere is wrong.
+    assert.ok(readme.includes(`The catalog above holds ${all} tools`), `README should say the catalog holds ${all} tools`);
+    assert.ok(readme.includes(`**Core tools** (${core} tools)`), `README should say ${core} core tools`);
+    assert.ok(
+      readme.includes(`**By default \`BUNNY_READONLY\` is on and ${dflt} of the ${all} register**`),
+      `README should say ${dflt} of ${all} register by default`,
+    );
+    assert.ok(
+      readme.includes(`the ${all - dflt} write-capable ones are withheld`),
+      `README should say ${all - dflt} write-capable tools are withheld`,
+    );
+  });
+
+  it("marks each catalogued tool read or write, matching its annotation", () => {
+    const { tools } = every;
+    const declared = new Map(tools.map((t) => [t.name, t.annotations?.readOnlyHint === true ? "read" : "write"]));
+    for (const [, name, mode] of readme.matchAll(/^\| `(bunny_[a-z_]+)` \|[^|]*\|[^|]*\| (read|write) \|$/gm)) {
+      assert.equal(mode, declared.get(name), `${name}: README says ${mode}`);
+    }
+    const marked = [...readme.matchAll(/^\| `(bunny_[a-z_]+)` \|[^|]*\|[^|]*\| (?:read|write) \|$/gm)].length;
+    assert.equal(marked, declared.size, "every catalogued tool needs a Mode cell");
+  });
+});

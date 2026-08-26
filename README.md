@@ -52,9 +52,11 @@ failed fetching https://svc:pw@origin/x?token=secret after 10s
 failed fetching (withheld: URL) after 10s
 ```
 
-A whitespace-delimited token is withheld when it carries an `@`, or a `?`/`#` with content on both sides of it — which is what separates an attached query from ordinary punctuation: `why? because` has a space after the mark and `#3` has nothing before it. Nothing is parsed, so there is no interior for a new URL shape to hide in — nine review findings were spent teaching an earlier reducer the shapes prose can take, and each one found the shape the last had not met.
+A whitespace-delimited token is withheld when it carries an `@`, or a `?`/`#` with anything attached to it — either side. That is what separates a query or fragment from ordinary punctuation: `why? because` has a space after the mark, while `callback?token=secret` and a bare `#access_token=x` do not. Nothing is parsed, so there is no interior for a new URL shape to hide in — nine review findings were spent teaching an earlier reducer the shapes prose can take, and each one found the shape the last had not met.
 
-A token with none of those marks is returned exactly as written, so `https://origin.example/ok`, `origin.example/file`, `#3` and `3.5` are untouched: a plain target carries nothing, and which host failed is most of a diagnostic's value.
+A fragment goes even when it looks like a section number. `#3` reads as a reference and `#123456` reads as a PIN, but they are the same string with different digits, so no rule can tell them apart; both are withheld rather than guessed at.
+
+A token with none of those marks is returned exactly as written, so `https://origin.example/ok`, `origin.example/file` and `3.5` are untouched: a plain target carries nothing, and which host failed is most of a diagnostic's value.
 
 The **structured** target fields — a log's `Url` and `Path` — are reduced rather than withheld, because a field that IS a URL can be cut precisely.
 
@@ -78,76 +80,78 @@ Use a permission-scoped key from **Account → API → Manage Keys**, never the 
 
 ## Features
 
-| Tool | Description | Data Source |
-|------|-------------|-------------|
-| `bunny_get_account` | Get account details and balance | bunny.net API |
-| `bunny_get_billing_summary` | Get billing summary with charges | bunny.net API |
-| `bunny_get_statistics` | Get CDN statistics (bandwidth, requests, cache hit rate) | bunny.net API |
-| `bunny_global_search` | Search across all resources | bunny.net API |
-| `bunny_purge_url` | Purge a URL from CDN cache | bunny.net API |
-| `bunny_list_regions` | List CDN edge regions | bunny.net API |
-| `bunny_list_countries` | List countries for geo-blocking | bunny.net API |
-| `bunny_list_pull_zones` | List pull zones with search and pagination | bunny.net API |
-| `bunny_get_pull_zone` | Get pull zone details | bunny.net API |
-| `bunny_create_pull_zone` | Create a pull zone | bunny.net API |
-| `bunny_update_pull_zone` | Update pull zone settings | bunny.net API |
-| `bunny_delete_pull_zone` | Delete a pull zone | bunny.net API |
-| `bunny_purge_pull_zone_cache` | Purge entire pull zone cache | bunny.net API |
-| `bunny_manage_pull_zone_hostnames` | Add or remove custom hostnames | bunny.net API |
-| `bunny_manage_edge_rules` | Add, update, delete, or toggle edge rules | bunny.net API |
-| `bunny_list_dns_zones` | List DNS zones | bunny.net API |
-| `bunny_get_dns_zone` | Get DNS zone with all records | bunny.net API |
-| `bunny_create_dns_zone` | Create a DNS zone | bunny.net API |
-| `bunny_update_dns_zone` | Update DNS zone settings | bunny.net API |
-| `bunny_delete_dns_zone` | Delete a DNS zone | bunny.net API |
-| `bunny_manage_dns_record` | Add, update, or delete DNS records | bunny.net API |
-| `bunny_get_dns_statistics` | Get DNS query statistics | bunny.net API |
-| `bunny_list_storage_zones` | List storage zones | bunny.net API |
-| `bunny_get_storage_zone` | Get storage zone details | bunny.net API |
-| `bunny_create_storage_zone` | Create a storage zone | bunny.net API |
-| `bunny_get_storage_zone_statistics` | Get storage zone usage statistics | bunny.net API |
-| `bunny_list_storage_files` | List files and directories | Storage API |
-| `bunny_download_storage_file` | Download file content | Storage API |
-| `bunny_delete_storage_file` | Delete a file or directory | Storage API |
-| `bunny_list_video_libraries` | List video libraries | bunny.net API |
-| `bunny_get_video_library` | Get library details | bunny.net API |
-| `bunny_create_video_library` | Create a video library | bunny.net API |
-| `bunny_update_video_library` | Update library settings | bunny.net API |
-| `bunny_list_videos` | List videos with search and pagination | Stream API |
-| `bunny_get_video` | Get video details | Stream API |
-| `bunny_create_video` | Create video object, optionally fetch from URL | Stream API |
-| `bunny_update_video` | Update video metadata | Stream API |
-| `bunny_delete_video` | Delete a video | Stream API |
-| `bunny_get_video_statistics` | Get view statistics | Stream API |
-| `bunny_get_video_heatmap` | Get attention heatmap data | Stream API |
-| `bunny_reencode_video` | Re-encode a video | Stream API |
-| `bunny_list_collections` | List video collections | Stream API |
-| `bunny_get_collection` | Get collection details | Stream API |
-| `bunny_manage_collection` | Create, update, or delete collections | Stream API |
-| `bunny_list_edge_scripts` | List edge scripts | bunny.net API |
-| `bunny_get_edge_script` | Get script details | bunny.net API |
-| `bunny_get_edge_script_code` | Get script source code | bunny.net API |
-| `bunny_set_edge_script_code` | Upload script code (saved as draft) | bunny.net API |
-| `bunny_manage_edge_script` | Create, update, or delete scripts | bunny.net API |
-| `bunny_publish_edge_script` | Publish a release to edge servers | bunny.net API |
-| `bunny_manage_edge_script_variables` | Manage environment variables and secrets | bunny.net API |
-| `bunny_list_shield_zones` | List shield security zones | bunny.net API |
-| `bunny_get_shield_zone` | Get zone by shield zone ID or pull zone ID | bunny.net API |
-| `bunny_get_waf_rules` | Get WAF rules and profiles | bunny.net API |
-| `bunny_manage_waf_custom_rule` | Create, update, or delete custom WAF rules | bunny.net API |
-| `bunny_list_rate_limit_rules` | List rate limiting rules | bunny.net API |
-| `bunny_manage_rate_limit_rule` | Create, update, or delete rate limit rules | bunny.net API |
-| `bunny_get_shield_metrics` | Get security metrics overview | bunny.net API |
-| `bunny_get_bot_detection` | Get or update bot detection settings | bunny.net API |
-| `bunny_list_mc_apps` | List Magic Container applications | bunny.net API |
-| `bunny_get_mc_app` | Get application details | bunny.net API |
-| `bunny_get_mc_app_overview` | Get app overview with real-time metrics | bunny.net API |
-| `bunny_manage_mc_app` | Create, update, or delete applications | bunny.net API |
-| `bunny_mc_app_lifecycle` | Deploy, undeploy, or restart applications | bunny.net API |
-| `bunny_list_mc_registries` | List container registries | bunny.net API |
-| `bunny_list_mc_regions` | List deployment regions | bunny.net API |
-| `bunny_get_mc_app_statistics` | Get application statistics | bunny.net API |
-| `bunny_get_origin_errors` | Get origin error logs for a pull zone | bunny.net API |
+| Tool | Description | Data Source | Mode |
+|------|-------------|-------------|------|
+| `bunny_get_account` | Get account details and balance | bunny.net API | read |
+| `bunny_get_billing_summary` | Get billing summary with charges | bunny.net API | read |
+| `bunny_get_statistics` | Get CDN statistics (bandwidth, requests, cache hit rate) | bunny.net API | read |
+| `bunny_global_search` | Search across all resources | bunny.net API | read |
+| `bunny_purge_url` | Purge a URL from CDN cache | bunny.net API | write |
+| `bunny_list_regions` | List CDN edge regions | bunny.net API | read |
+| `bunny_list_countries` | List countries for geo-blocking | bunny.net API | read |
+| `bunny_list_pull_zones` | List pull zones with search and pagination | bunny.net API | read |
+| `bunny_get_pull_zone` | Get pull zone details | bunny.net API | read |
+| `bunny_create_pull_zone` | Create a pull zone | bunny.net API | write |
+| `bunny_update_pull_zone` | Update pull zone settings | bunny.net API | write |
+| `bunny_delete_pull_zone` | Delete a pull zone | bunny.net API | write |
+| `bunny_purge_pull_zone_cache` | Purge entire pull zone cache | bunny.net API | write |
+| `bunny_manage_pull_zone_hostnames` | Add or remove custom hostnames | bunny.net API | write |
+| `bunny_manage_edge_rules` | Add, update, delete, or toggle edge rules | bunny.net API | write |
+| `bunny_list_dns_zones` | List DNS zones | bunny.net API | read |
+| `bunny_get_dns_zone` | Get DNS zone with all records | bunny.net API | read |
+| `bunny_create_dns_zone` | Create a DNS zone | bunny.net API | write |
+| `bunny_update_dns_zone` | Update DNS zone settings | bunny.net API | write |
+| `bunny_delete_dns_zone` | Delete a DNS zone | bunny.net API | write |
+| `bunny_manage_dns_record` | Add, update, or delete DNS records | bunny.net API | write |
+| `bunny_get_dns_statistics` | Get DNS query statistics | bunny.net API | read |
+| `bunny_list_storage_zones` | List storage zones | bunny.net API | read |
+| `bunny_get_storage_zone` | Get storage zone details | bunny.net API | read |
+| `bunny_create_storage_zone` | Create a storage zone | bunny.net API | write |
+| `bunny_get_storage_zone_statistics` | Get storage zone usage statistics | bunny.net API | read |
+| `bunny_list_storage_files` | List files and directories | Storage API | read |
+| `bunny_download_storage_file` | Download file content | Storage API | read |
+| `bunny_delete_storage_file` | Delete a file or directory | Storage API | write |
+| `bunny_list_video_libraries` | List video libraries | bunny.net API | read |
+| `bunny_get_video_library` | Get library details | bunny.net API | read |
+| `bunny_create_video_library` | Create a video library | bunny.net API | write |
+| `bunny_update_video_library` | Update library settings | bunny.net API | write |
+| `bunny_list_videos` | List videos with search and pagination | Stream API | read |
+| `bunny_get_video` | Get video details | Stream API | read |
+| `bunny_create_video` | Create video object, optionally fetch from URL | Stream API | write |
+| `bunny_update_video` | Update video metadata | Stream API | write |
+| `bunny_delete_video` | Delete a video | Stream API | write |
+| `bunny_get_video_statistics` | Get view statistics | Stream API | read |
+| `bunny_get_video_heatmap` | Get attention heatmap data | Stream API | read |
+| `bunny_reencode_video` | Re-encode a video | Stream API | write |
+| `bunny_list_collections` | List video collections | Stream API | read |
+| `bunny_get_collection` | Get collection details | Stream API | read |
+| `bunny_manage_collection` | Create, update, or delete collections | Stream API | write |
+| `bunny_list_edge_scripts` | List edge scripts | bunny.net API | read |
+| `bunny_get_edge_script` | Get script details | bunny.net API | read |
+| `bunny_get_edge_script_code` | Get script source code | bunny.net API | read |
+| `bunny_set_edge_script_code` | Upload script code (saved as draft) | bunny.net API | write |
+| `bunny_manage_edge_script` | Create, update, or delete scripts | bunny.net API | write |
+| `bunny_publish_edge_script` | Publish a release to edge servers | bunny.net API | write |
+| `bunny_list_edge_script_variables` | List a script's environment variable names | bunny.net API | read |
+| `bunny_manage_edge_script_variables` | Manage environment variables and secrets | bunny.net API | write |
+| `bunny_list_shield_zones` | List shield security zones | bunny.net API | read |
+| `bunny_get_shield_zone` | Get zone by shield zone ID or pull zone ID | bunny.net API | read |
+| `bunny_get_waf_rules` | Get WAF rules and profiles | bunny.net API | read |
+| `bunny_manage_waf_custom_rule` | Create, update, or delete custom WAF rules | bunny.net API | write |
+| `bunny_list_rate_limit_rules` | List rate limiting rules | bunny.net API | read |
+| `bunny_manage_rate_limit_rule` | Create, update, or delete rate limit rules | bunny.net API | write |
+| `bunny_get_shield_metrics` | Get security metrics overview | bunny.net API | read |
+| `bunny_read_bot_detection` | Read bot detection settings | bunny.net API | read |
+| `bunny_get_bot_detection` | Get or update bot detection settings | bunny.net API | write |
+| `bunny_list_mc_apps` | List Magic Container applications | bunny.net API | read |
+| `bunny_get_mc_app` | Get application details | bunny.net API | read |
+| `bunny_get_mc_app_overview` | Get app overview with real-time metrics | bunny.net API | read |
+| `bunny_manage_mc_app` | Create, update, or delete applications | bunny.net API | write |
+| `bunny_mc_app_lifecycle` | Deploy, undeploy, or restart applications | bunny.net API | write |
+| `bunny_list_mc_registries` | List container registries | bunny.net API | read |
+| `bunny_list_mc_regions` | List deployment regions | bunny.net API | read |
+| `bunny_get_mc_app_statistics` | Get application statistics | bunny.net API | read |
+| `bunny_get_origin_errors` | Get origin error logs for a pull zone | bunny.net API | read |
 
 **Data sources:** Tools marked **Storage API** require `BUNNY_STORAGE_KEY`. Tools marked **Stream API** require `BUNNY_STREAM_KEY`. All other tools use `BUNNY_API_KEY`.
 
@@ -355,11 +359,13 @@ node index.js
 
 ## How It Works
 
-This MCP server connects to the [bunny.net API](https://docs.bunny.net/reference/bunnynet-api-overview) using your API key. It registers up to 68 tools depending on which API keys are provided:
+This MCP server connects to the [bunny.net API](https://docs.bunny.net/reference/bunnynet-api-overview) using your API key. The catalog above holds 70 tools, split by which API keys are provided:
 
-- **Core tools** (55 tools) — always available with `BUNNY_API_KEY`
+- **Core tools** (56 tools) — always available with `BUNNY_API_KEY`
 - **Stream tools** (11 tools) — registered when `BUNNY_STREAM_KEY` is set
 - **Storage file tools** (3 tools) — registered when `BUNNY_STORAGE_KEY` is set
+
+Those are the totals with the write gate open. **By default `BUNNY_READONLY` is on and 41 of the 70 register** — the 29 write-capable ones are withheld, per [section 2](#2-write-tools-are-withheld-unless-you-ask-for-them). The `Mode` column in the catalog says which is which.
 
 All read operations are cached in-memory with a short TTL for performance. Every tool includes MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) so clients can make informed decisions about tool approval.
 
