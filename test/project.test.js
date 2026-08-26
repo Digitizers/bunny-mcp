@@ -780,3 +780,33 @@ test("an absent optional block comes back as null, not as a failure", () => {
   // …and every other primitive is still refused.
   assert.throws(() => projectResponse("/user", "a string"), /expected an object/);
 });
+
+test("a scrubbed field that arrives as structure is dropped, not passed", () => {
+  // Every scrubber is a string function and returns a non-string unchanged, so
+  // an Error or an OriginUrl that arrived as an OBJECT would have been handed
+  // back whole — past the rule that structure survives only through a declared
+  // nested shape.
+  const out = projectResponse("/12345/08-26-2026", [{
+    Timestamp: 1,
+    StatusCode: 502,
+    Url: { href: "https://u:p@h/f?token=secret", extra: "sk_live_x" },
+    Message: { text: "failed", token: "sk_live_x" },
+    Path: ["/a?token=x"],
+  }]);
+  const e = out.data[0];
+  const json = JSON.stringify(e);
+  assert.ok(!json.includes("sk_live_x"));
+  assert.ok(!json.includes("token=secret"));
+  assert.equal("Url" in e, false);
+  assert.equal("Message" in e, false);
+  assert.equal("Path" in e, false);
+  assert.equal(e.StatusCode, 502, "the rest of the entry still reports");
+});
+
+test("a scrubbed field that arrives as text still comes back scrubbed", () => {
+  const out = projectResponse("/12345/08-26-2026", [
+    { Timestamp: 1, Url: "https://o/x?t=1", Message: "failed for ?tok=1" },
+  ]);
+  assert.equal(out.data[0].Url, "https://o/x");
+  assert.equal(out.data[0].Message, "failed for (withheld: URL)");
+});
