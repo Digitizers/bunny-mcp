@@ -386,3 +386,56 @@ test("a storage listing is projected whatever its response header claims", () =>
   });
   assert.equal(dl.data, file);
 });
+
+test("a directory fetched through the download tool does not ride the bypass", () => {
+  // Round-38 P2. Rounds 1 and 30 established that a download is identified by
+  // the REQUEST, not by the response header — but the download tool takes a
+  // path, and a directory path sends the same arraybuffer request. Bunny then
+  // answers it with a listing, and the bypass returned that listing whole:
+  // past the allow-list, unknown fields and all.
+  const http = axios.create();
+  installProjection(http, "storage");
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  const listing = Buffer.from(JSON.stringify([
+    { Guid: "g", StorageZoneName: "zone", Path: "/zone/assets/", ObjectName: "a.png", Password: "leaked" },
+  ]));
+  assert.throws(
+    () => handler({
+      config: { url: "/zone/assets/", responseType: "arraybuffer" },
+      headers: { "content-type": "application/json" },
+      data: listing,
+    }),
+    /is a directory, not a file/,
+    "a listing must never leave through the download bypass",
+  );
+});
+
+test("only an unmistakable listing is treated as one", () => {
+  // The narrowness is the point: the bypass exists because reducing the
+  // operator's own `.json` file to `{}` was itself a bug. A body is a listing
+  // only when every entry carries the marks of a Bunny storage object.
+  const http = axios.create();
+  installProjection(http, "storage");
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  const files = [
+    // JSON, and an array, and even an array of objects — but not storage objects.
+    JSON.stringify([{ id: 1, title: "my notes" }, { id: 2, title: "more" }]),
+    // A single storage-shaped object is not a listing; Bunny answers with an array.
+    JSON.stringify({ StorageZoneName: "zone", Path: "/p", ObjectName: "o" }),
+    // An empty array carries nothing either way, so a real file wins the tie.
+    "[]",
+    // Not JSON at all.
+    "binary file content",
+  ];
+  for (const text of files) {
+    const body = Buffer.from(text);
+    const res = handler({
+      config: { url: "/zone/assets/file", responseType: "arraybuffer" },
+      headers: { "content-type": "application/json" },
+      data: body,
+    });
+    assert.equal(res.data, body, `the operator's file must survive whole: ${text.slice(0, 40)}`);
+  }
+});
