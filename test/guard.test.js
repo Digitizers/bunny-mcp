@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import axios from "axios";
-import { guardRegistration, installProjection, readOnlyFromEnv } from "../lib/guard.js";
+import { guardRegistration, installProjection, readOnlyFromEnv, allowSourceFromEnv } from "../lib/guard.js";
 
 function fakeServer() {
   const registered = [];
@@ -93,14 +93,19 @@ test("an undeclared path throws rather than returning the raw payload", () => {
   );
 });
 
-test("a non-JSON body is streamed through untouched", () => {
+test("a storage file download is streamed through untouched", () => {
+  // The subject here is the STORAGE client, which serves file content by
+  // definition. This test used to run against the management client and assert
+  // that any non-JSON body passed — the blanket exemption that let edge-script
+  // source through. On the management API a non-JSON body now needs a declared
+  // policy; see the test below.
   const http = axios.create();
-  installProjection(http, "api");
+  installProjection(http, "storage");
   const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
 
   const body = Buffer.from("binary file content");
   const res = handler({
-    config: { url: "/whatever/file.png" },
+    config: { url: "/assets/logo.png" },
     headers: { "content-type": "image/png" },
     data: body,
   });
@@ -203,4 +208,54 @@ test("a query string counts as a submitted payload", () => {
       },
     ),
   ]);
+});
+
+test("edge-script source is withheld unless the operator releases it", () => {
+  // The non-JSON branch used to wave EVERY such body through as "a file
+  // download". /compute/script/<id>/code returns SOURCE, and source carries
+  // hard-coded keys about as often as CustomHTML does — which is dropped.
+  const source = "const KEY = 'sk_live_abcdef';\nexport default () => KEY;";
+
+  const locked = axios.create();
+  installProjection(locked, "api", false);
+  const lockedHandler = locked.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+  const withheld = lockedHandler({
+    config: { url: "/compute/script/7/code" },
+    headers: { "content-type": "application/javascript" },
+    data: source,
+  });
+  assert.ok(!String(withheld.data).includes("sk_live"), "the key must not reach the transcript");
+  assert.match(String(withheld.data), /BUNNY_ALLOW_SOURCE/, "and the operator is told how to get it");
+
+  const released = axios.create();
+  installProjection(released, "api", true);
+  const releasedHandler = released.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+  const out = releasedHandler({
+    config: { url: "/compute/script/7/code" },
+    headers: { "content-type": "application/javascript" },
+    data: source,
+  });
+  assert.equal(out.data, source, "released on purpose, it comes back whole");
+});
+
+test("an undeclared non-JSON body raises instead of passing", () => {
+  const http = axios.create();
+  installProjection(http, "api", true);
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+  assert.throws(
+    () => handler({
+      config: { url: "/pullzone/1" },
+      headers: { "content-type": "text/plain" },
+      data: "surprise",
+    }),
+    /no declared policy/,
+  );
+});
+
+test("BUNNY_ALLOW_SOURCE is off unless explicitly on", () => {
+  assert.equal(allowSourceFromEnv({}), false);
+  assert.equal(allowSourceFromEnv({ BUNNY_ALLOW_SOURCE: "banana" }), false);
+  for (const on of ["1", "true", "YES", "on"]) {
+    assert.equal(allowSourceFromEnv({ BUNNY_ALLOW_SOURCE: on }), true, on);
+  }
 });

@@ -42,6 +42,16 @@ BUNNY_READONLY=0   # register the write tools too — 0/false/no/off, nothing el
 
 A non-2xx response never reaches the response interceptor — axios routes it to the rejection handler — so error bodies get their own boundary. Bunny quotes submitted values back in validation messages, and what these tools submit includes edge-script secrets, so the rule keys on the **request**: a request that carried no body cannot have its own payload echoed at it and keeps its message; a request that carried one has the message withheld, with the status and `ErrorKey` still saying what went wrong.
 
+### Edge-script source is withheld by default
+
+`/compute/script/<id>/code` returns the script's source, and source carries hard-coded keys about as readily as any other operator-authored text — `CustomHTML` is dropped for exactly that reason. So the body is withheld and the response says how to release it:
+
+```bash
+BUNNY_ALLOW_SOURCE=1   # return edge-script source — 1/true/yes/on, nothing else
+```
+
+More generally, a non-JSON body on the management API no longer gets a free pass. It passes only where a route declares it may; anything else raises, naming the path. The blanket "non-JSON means it's a file download" exemption was the hole this closed.
+
 ### Credential scoping
 
 Use a permission-scoped key from **Account → API → Manage Keys**, never the account master key. The redaction above keeps secrets out of the transcript; it does nothing about what the key itself is allowed to do.

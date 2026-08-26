@@ -7,7 +7,7 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { createCache } from "./lib/helpers.js";
-import { guardRegistration, installProjection, readOnlyFromEnv } from "./lib/guard.js";
+import { guardRegistration, installProjection, readOnlyFromEnv, allowSourceFromEnv } from "./lib/guard.js";
 import { registerAccountTools } from "./lib/tools/account.js";
 import { registerPullZoneTools } from "./lib/tools/pull-zones.js";
 import { registerDnsTools } from "./lib/tools/dns-zones.js";
@@ -86,10 +86,12 @@ const storageHttp = BUNNY_STORAGE_KEY ? axios.create({
 // Installed on every client before a single tool is registered, so no tool can
 // see an unprojected payload. See lib/project.js for what survives and why.
 
-installProjection(coreHttp, "api");
-installProjection(originHttp, "api");
-if (streamHttp) installProjection(streamHttp, "api");
-if (storageHttp) installProjection(storageHttp, "storage");
+const allowSource = allowSourceFromEnv();
+
+installProjection(coreHttp, "api", allowSource);
+installProjection(originHttp, "api", allowSource);
+if (streamHttp) installProjection(streamHttp, "api", allowSource);
+if (storageHttp) installProjection(storageHttp, "storage", allowSource);
 
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
@@ -127,6 +129,12 @@ if (streamHttp) {
 }
 if (storageHttp) {
   registerStorageFileTools(reg, storageHttp, cache);
+}
+
+if (!allowSource) {
+  process.stderr.write(
+    "bunny-mcp: edge-script source is withheld. Set BUNNY_ALLOW_SOURCE=1 to return it.\n"
+  );
 }
 
 if (readOnly) {
