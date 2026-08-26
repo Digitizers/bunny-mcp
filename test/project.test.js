@@ -619,3 +619,24 @@ test("scrubText leaves prose that contains no URL alone", () => {
   });
   assert.equal(out.data.transcodingMessages[0].message, "bitrate below the recommended minimum");
 });
+
+test("a schemeless authenticated target is reduced whole, not just its userinfo", () => {
+  // Removing the part a credential is known to sit in and keeping the rest is
+  // the deny-list mistake this file has made three times: userinfo on an
+  // origin, then its query, then this. The WHOLE target is reduced.
+  const out = projectResponse("/12345/08-26-2026", [{
+    Timestamp: 1,
+    Message: "failed for user:pass@origin.example/file?token=secret now",
+  }]);
+  const msg = out.data[0].Message;
+  assert.ok(!msg.includes("user:pass"));
+  assert.ok(!msg.includes("token=secret"), "the query goes with the userinfo");
+  assert.match(msg, /failed for origin\.example\/file now/, "the sentence still reads");
+});
+
+test("scrubText does not mangle prose that merely contains a colon", () => {
+  const out = projectResponse("/12345/08-26-2026", [
+    { Timestamp: 1, Message: "timeout after 10s: origin did not respond" },
+  ]);
+  assert.equal(out.data[0].Message, "timeout after 10s: origin did not respond");
+});
