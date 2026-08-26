@@ -1,6 +1,44 @@
-# bunnycdn-mcp
+# bunny-mcp
 
-MCP server for [BunnyCDN](https://bunny.net) — manage pull zones, DNS, storage, video streaming, edge scripting, security, and Magic Containers right from your AI assistant.
+MCP server for [Bunny.net](https://bunny.net) — pull zones, DNS, storage, video streaming, edge scripting, Shield/WAF and Magic Containers, from an AI assistant.
+
+A hardened fork of [anvme/bunnycdn-mcp](https://github.com/anvme/bunnycdn-mcp) (MIT). Two things differ, and both exist because pointing the upstream at a real Bunny account publishes credentials.
+
+## What the fork changes
+
+### 1. Responses are projected through an allow-list
+
+Bunny returns credentials inline with ordinary metadata:
+
+| Endpoint | Credential in the response |
+|---|---|
+| `GET /pullzone` | `ZoneSecurityKey` — the token-authentication signing secret, for every zone |
+| `GET /pullzone` → `Hostnames[]` | `Certificate` and `CertificateKey` — the TLS private key |
+| `GET /storagezone` | `Password`, `ReadOnlyPassword` — full read-write and read storage keys |
+| `GET /videolibrary` | `ApiKey`, `ReadOnlyApiKey`, `WebhookSignatureKey` |
+| `GET /user` | `ApiKey` — the account key the server itself authenticates with |
+
+Handing those to a model puts them in its context, its logs and its transcript. So no tool ever sees them: every response passes through [`lib/project.js`](lib/project.js) at the HTTP layer, keyed by request path, and only the fields named there survive.
+
+It is an **allow-list, not a deny-list**. Stripping known secret names fails the moment Bunny adds a field — the new one ships in the clear and nothing tells you. Naming what may pass fails the other way: a new field is invisible until someone decides it is safe.
+
+It **fails closed**. A path with no declared shape returns no data and an error naming the path, rather than the raw payload.
+
+### 2. Write tools are withheld unless you ask for them
+
+`BUNNY_READONLY` defaults to on. In that mode the write-capable tools are **never registered** — absent from `tools/list`, not merely annotated as risky. An agent cannot call a tool it cannot see, and the MCP `destructiveHint` is advice to a client, not a control.
+
+The gate fails closed: a tool is registered in read-only mode only if it declares `readOnlyHint: true`. A new tool whose author forgot its annotations counts as a writer and is withheld.
+
+```bash
+BUNNY_READONLY=0   # register the write tools too — 0/false/no/off, nothing else
+```
+
+### Credential scoping
+
+Use a permission-scoped key from **Account → API → Manage Keys**, never the account master key. The redaction above keeps secrets out of the transcript; it does nothing about what the key itself is allowed to do.
+
+---
 
 ## Features
 
@@ -95,9 +133,9 @@ Add to `.vscode/mcp.json`:
 ```json
 {
   "servers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -114,9 +152,9 @@ Add to `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -133,9 +171,9 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 ```json
 {
   "mcpServers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -152,9 +190,9 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -168,16 +206,16 @@ Add to `claude_desktop_config.json`:
 <summary>Claude Code</summary>
 
 ```bash
-claude mcp add --transport stdio bunnycdn -- npx -y bunnycdn-mcp
+claude mcp add --transport stdio bunny -- npx -y github:Digitizers/bunny-mcp
 ```
 
 Or add to `.mcp.json` (shared with team):
 ```json
 {
   "mcpServers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -194,9 +232,9 @@ Add to `settings.json`:
 ```json
 {
   "context_servers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -213,9 +251,9 @@ Open **Settings → Tools → AI Assistant → MCP**, click **+**, and paste:
 ```json
 {
   "mcpServers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -229,16 +267,16 @@ Open **Settings → Tools → AI Assistant → MCP**, click **+**, and paste:
 <summary>Gemini CLI</summary>
 
 ```bash
-gemini mcp add bunnycdn -- npx -y bunnycdn-mcp
+gemini mcp add bunny -- npx -y github:Digitizers/bunny-mcp
 ```
 
 Or add to `~/.gemini/settings.json`:
 ```json
 {
   "mcpServers": {
-    "bunnycdn": {
+    "bunny": {
       "command": "npx",
-      "args": ["-y", "bunnycdn-mcp"],
+      "args": ["-y", "github:Digitizers/bunny-mcp"],
       "env": {
         "BUNNY_API_KEY": "your-api-key"
       }
@@ -253,7 +291,7 @@ Or add to `~/.gemini/settings.json`:
 
 Any MCP client that supports **stdio** transport can use this server. The command is:
 ```
-npx -y bunnycdn-mcp
+npx -y github:Digitizers/bunny-mcp
 ```
 See the [full list of MCP clients](https://modelcontextprotocol.io/clients).
 </details>
@@ -272,8 +310,8 @@ Add these to the `env` block in your MCP client configuration above.
 ### Local development
 
 ```bash
-git clone https://github.com/anvme/bunnycdn-mcp.git
-cd bunnycdn-mcp
+git clone https://github.com/Digitizers/bunny-mcp.git
+cd bunny-mcp
 npm install
 npm test
 node index.js
