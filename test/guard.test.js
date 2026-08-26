@@ -322,3 +322,21 @@ test("no write-annotated tool hides a read path", () => {
     `a GET is trapped behind the write gate in: ${hidden.join(", ")}. Register its read path separately.`,
   );
 });
+
+test("a differently-cased JSON media type still reaches the projector", () => {
+  // Media types are case-insensitive by RFC 9110, and an intermediary is free
+  // to send `Application/JSON`. Comparing the raw header made that spelling
+  // read as "not JSON", so a storage listing skipped the allow-list entirely.
+  const http = axios.create();
+  installProjection(http, "storage");
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  for (const ct of ["Application/JSON", "APPLICATION/JSON; charset=UTF-8", "application/json"]) {
+    const res = handler({
+      config: { url: "/assets/" },
+      headers: { "content-type": ct },
+      data: [{ ObjectName: "a.png", Password: "leaked" }],
+    });
+    assert.equal("Password" in res.data[0], false, `content-type ${ct} must not bypass the projector`);
+  }
+});

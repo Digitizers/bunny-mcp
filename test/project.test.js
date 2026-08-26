@@ -675,3 +675,18 @@ test("an ordinary question mark in prose survives", () => {
   const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: "why? because it timed out" }]);
   assert.equal(out.data[0].Message, "why? because it timed out");
 });
+
+test("a fragment credential is removed like a query one", () => {
+  // OAuth's implicit flow returns its token in a fragment, so `#access_token=…`
+  // is a credential by construction rather than by accident.
+  const out = projectResponse("/library/5/videos/abc", {
+    guid: "abc",
+    transcodingMessages: [{ level: 2, message: "fetch failed for origin.example/video#access_token=secret" }],
+  });
+  assert.ok(!out.data.transcodingMessages[0].message.includes("access_token"));
+});
+
+test("an ordinary hash in prose survives", () => {
+  const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: "see section #3 for details" }]);
+  assert.equal(out.data[0].Message, "see section #3 for details");
+});
