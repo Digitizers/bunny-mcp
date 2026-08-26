@@ -775,3 +775,26 @@ test("a pull zone's structured cache-error settings come back", () => {
   assert.equal(out.data.CacheErrorResponses[0].CacheAge, 30);
   assert.equal("Unvetted" in out.data.CacheErrorResponses[0], false);
 });
+
+test("userinfo is removed whatever kind of host follows it", () => {
+  // Six findings went into recognising targets, ending with a bracketed IPv6
+  // host that `[\w.-]+` could never match. The rule matches the CONSTRUCT now
+  // and stops caring what follows.
+  const cases = [
+    ["https://user:pass@[2001:db8::1]/file?token=secret failed", "https://[2001:db8::1]/file failed"],
+    ["//user:pass@[2001:db8::1]/file?token=secret failed", "//[2001:db8::1]/file failed"],
+    ["user:pass@192.0.2.10/file failed", "192.0.2.10/file failed"],
+    ["https://user:pass@origin.example/f?token=x failed", "https://origin.example/f failed"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
+    assert.equal(out.data[0].Message, expected, input);
+  }
+});
+
+test("a diagnostic with no credential in it is returned as written", () => {
+  for (const msg of ["timeout after 10s: origin did not respond", "see https://origin.example/ok"]) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
+    assert.equal(out.data[0].Message, msg);
+  }
+});
