@@ -369,29 +369,7 @@ test("a field called Value is not automatically a secret", () => {
   assert.equal(rec.data.Value, "203.0.113.4");
 });
 
-test("a URL keeps where it points and nothing else", () => {
-  // The first scrubber removed `user:password@` and kept the rest — a deny-list
-  // wearing a scrubber's coat. It closed the one place a credential was known to
-  // sit and left every other one open, so `?token=…` walked straight through.
-  const cases = [
-    ["https://svc:s3cret@origin.example.com/path?token=abc#frag", "https://origin.example.com/path"],
-    ["https://origin.example.com/file?token=secret", "https://origin.example.com/file"],
-    ["https://origin.example.com", "https://origin.example.com"],
-    ["https://origin.example.com:8443/base", "https://origin.example.com:8443/base"],
-  ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: input });
-    assert.equal(out.data.OriginUrl, expected, input);
-  }
-});
 
-test("an unparseable URL carrying a query or userinfo is withheld", () => {
-  const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "weird?token=abc" });
-  assert.ok(!String(out.data.OriginUrl).includes("token=abc"));
-
-  const bare = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "origin.example.com" });
-  assert.equal(bare.data.OriginUrl, "origin.example.com", "a bare host is harmless");
-});
 
 test("a private registry URL goes through the same reduction as an origin", () => {
   const out = projectResponse("/mc/registries", [
@@ -582,57 +560,9 @@ test("bot detection has its own shape, not the whole zone's", () => {
 
 // ─── Diagnostics quote the request that failed ───────────────────────────────
 
-test("an origin error log reduces the URL it is about", () => {
-  // The URL is the point of the log — an operator debugging a 502 needs to know
-  // which request failed — so it is reduced rather than dropped, and the prose
-  // around it is scrubbed for URLs quoted inside.
-  const out = projectResponse("/12345/08-26-2026", [{
-    Timestamp: 1,
-    Url: "https://origin.example.com/f?token=secret",
-    ErrorCode: "http_timeout",
-    Message: "failed fetching https://svc:pw@origin.example.com/f?token=secret after 10s",
-    Junk: "unvetted",
-  }]);
-  const e = out.data[0];
-  assert.equal(e.Url, "https://origin.example.com/f", "which request failed is still legible");
-  assert.equal(e.ErrorCode, "http_timeout");
-  assert.ok(!e.Message.includes("token=secret"));
-  assert.ok(!e.Message.includes("svc:pw"));
-  assert.match(e.Message, /failed fetching .* after 10s/, "the sentence still reads");
-  assert.equal("Junk" in e, false, "and an unvetted field still drops");
-});
 
-test("a transcoding diagnostic scrubs the fetch URL it names", () => {
-  const out = projectResponse("/library/5/videos/abc", {
-    guid: "abc",
-    transcodingMessages: [{ level: 2, issueCode: 9, message: "fetch failed for https://cdn/x?sig=abc" }],
-  });
-  const note = out.data.transcodingMessages[0];
-  assert.equal(note.issueCode, 9, "the code is the diagnosis");
-  assert.ok(!note.message.includes("sig=abc"));
-});
 
-test("scrubText leaves prose that contains no URL alone", () => {
-  const out = projectResponse("/library/5/videos/abc", {
-    guid: "abc",
-    transcodingMessages: [{ level: 1, message: "bitrate below the recommended minimum" }],
-  });
-  assert.equal(out.data.transcodingMessages[0].message, "bitrate below the recommended minimum");
-});
 
-test("a schemeless authenticated target is reduced whole, not just its userinfo", () => {
-  // Removing the part a credential is known to sit in and keeping the rest is
-  // the deny-list mistake this file has made three times: userinfo on an
-  // origin, then its query, then this. The WHOLE target is reduced.
-  const out = projectResponse("/12345/08-26-2026", [{
-    Timestamp: 1,
-    Message: "failed for user:pass@origin.example/file?token=secret now",
-  }]);
-  const msg = out.data[0].Message;
-  assert.ok(!msg.includes("user:pass"));
-  assert.ok(!msg.includes("token=secret"), "the query goes with the userinfo");
-  assert.match(msg, /failed for origin\.example\/file now/, "the sentence still reads");
-});
 
 test("scrubText does not mangle prose that merely contains a colon", () => {
   const out = projectResponse("/12345/08-26-2026", [
@@ -657,39 +587,9 @@ test("the top-level operand's verdict does not depend on array order", () => {
   assert.deepEqual(mixed.data.value, reversed.data.value, "and the order cannot change the answer");
 });
 
-test("a query string in prose is removed whatever precedes it", () => {
-  // Three rounds went into recognising URL shapes. The thing worth removing is
-  // the query construct itself.
-  const cases = [
-    ["origin.example/file?token=secret failed", "origin.example/file failed"],
-    ["//origin.example/file?token=secret failed", "//origin.example/file failed"],
-    ["https://origin.example/file?token=secret failed", "https://origin.example/file failed"],
-  ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
-    assert.equal(out.data[0].Message, expected, input);
-  }
-});
 
-test("an ordinary question mark in prose survives", () => {
-  const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: "why? because it timed out" }]);
-  assert.equal(out.data[0].Message, "why? because it timed out");
-});
 
-test("a fragment credential is removed like a query one", () => {
-  // OAuth's implicit flow returns its token in a fragment, so `#access_token=…`
-  // is a credential by construction rather than by accident.
-  const out = projectResponse("/library/5/videos/abc", {
-    guid: "abc",
-    transcodingMessages: [{ level: 2, message: "fetch failed for origin.example/video#access_token=secret" }],
-  });
-  assert.ok(!out.data.transcodingMessages[0].message.includes("access_token"));
-});
 
-test("an ordinary hash in prose survives", () => {
-  const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: "see section #3 for details" }]);
-  assert.equal(out.data[0].Message, "see section #3 for details");
-});
 
 test("a pull zone returns the caching and shielding configuration it advertises", () => {
   const out = projectResponse("/pullzone/1", {
@@ -749,23 +649,6 @@ test("every PASSTHROUGH route is a status or a statistic, never a resource", () 
   assert.deepEqual(resourceish, [], `these passthrough routes may answer with a resource: ${resourceish.join(", ")}`);
 });
 
-test("every string in a diagnostic is scrubbed, not only the ones named Url", () => {
-  // `Path` is the same request target under another name. Scrubbing Url and the
-  // prose while leaving it was the fifth time this file fixed one member of the
-  // URL family and left a sibling — the SHAPE carries the rule now.
-  const out = projectResponse("/12345/08-26-2026", [{
-    Timestamp: 1,
-    Url: "https://origin/x?token=secret",
-    Path: "/callback?token=secret",
-    StatusCode: 502,
-    ErrorCode: "http_timeout",
-  }]);
-  const e = out.data[0];
-  assert.equal(e.Path, "/callback");
-  assert.equal(e.Url, "https://origin/x");
-  assert.equal(e.StatusCode, 502, "numbers are untouched");
-  assert.equal(e.ErrorCode, "http_timeout", "and a code with no query survives whole");
-});
 
 test("a pull zone's structured cache-error settings come back", () => {
   const out = projectResponse("/pullzone/1", {
@@ -776,107 +659,71 @@ test("a pull zone's structured cache-error settings come back", () => {
   assert.equal("Unvetted" in out.data.CacheErrorResponses[0], false);
 });
 
-test("userinfo is removed whatever kind of host follows it", () => {
-  // Six findings went into recognising targets, ending with a bracketed IPv6
-  // host that `[\w.-]+` could never match. The rule matches the CONSTRUCT now
-  // and stops caring what follows.
-  const cases = [
-    ["https://user:pass@[2001:db8::1]/file?token=secret failed", "https://[2001:db8::1]/file failed"],
-    ["//user:pass@[2001:db8::1]/file?token=secret failed", "//[2001:db8::1]/file failed"],
-    ["user:pass@192.0.2.10/file failed", "192.0.2.10/file failed"],
-    ["https://user:pass@origin.example/f?token=x failed", "https://origin.example/f failed"],
+
+
+
+
+
+
+
+
+// ─── Diagnostics: withhold the target, keep the sentence ─────────────────────
+//
+// Nine rounds were spent teaching a reducer the shapes a URL takes in prose,
+// and each round found the shape the last pattern had not met. Nothing is
+// parsed now: a token either carries the marks of a credential-bearing target
+// or it does not, so there is no interior left to miss.
+
+test("every shape that ever leaked is withheld whole", () => {
+  const leaked = [
+    "https://user:pass@origin.example/file?token=secret",   // scheme + userinfo + query
+    "//user:pass@[2001:db8::1]/file?token=secret",          // protocol-relative, IPv6 host
+    "user:pa:ss@origin.example/file",                       // colon inside the password
+    "origin.example/file?eyJhbGciOiJIUzI1NiJ9",             // opaque query, no `=`
+    "origin.example/file#secret-token",                     // fragment
+    "origin.example/video(foo)?token=secret",               // parenthesis in the path
+    "(https://user:pass@origin.example/file)",              // wrapped in punctuation
+    "fetch_url=https://user:pass@origin.example/file",      // behind a label
   ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
-    assert.equal(out.data[0].Message, expected, input);
+  for (const target of leaked) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: `failed for ${target} after 10s` }]);
+    assert.equal(out.data[0].Message, "failed for (withheld: URL) after 10s", target);
   }
 });
 
-test("a diagnostic with no credential in it is returned as written", () => {
-  for (const msg of ["timeout after 10s: origin did not respond", "see https://origin.example/ok"]) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
-    assert.equal(out.data[0].Message, msg);
-  }
-});
-
-test("a credential suffix goes whatever its internal syntax", () => {
-  // Both patterns assumed a syntax: the userinfo one that a password holds no
-  // colon, the suffix one that a query is `key=value`. A bearer token in a
-  // query has no `=`, and a password may contain anything.
-  const cases = [
-    ["user:pa:ss@origin.example/file failed", "origin.example/file failed"],
-    ["origin.example/file?eyJhbGciOiJIUzI1NiJ9 failed", "origin.example/file failed"],
-    ["origin.example/file#secret-token failed", "origin.example/file failed"],
-    ["https://user:pa:ss@[2001:db8::1]/f#tok failed", "https://[2001:db8::1]/f failed"],
-  ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
-    assert.equal(out.data[0].Message, expected, input);
-  }
-});
-
-test("prose keeps its punctuation", () => {
-  // The suffix rule fires only where the token it hangs off looks like a path
-  // or a host — it needs a `/` or a `.` in it — so ordinary writing survives.
-  for (const msg of [
+test("a plain target and ordinary prose are returned as written", () => {
+  // A target with no userinfo, query or fragment carries nothing, and which
+  // host failed is most of a diagnostic's value.
+  const kept = [
+    "https://origin.example/ok is fine",
+    "origin.example/file was not found",
+    "timeout after 10s: origin did not respond",
     "see section #3 for details",
     "why? because it timed out",
-    "timeout after 10s: origin did not respond",
     "ratio was 3.5 and rising",
-  ]) {
+    "origin   did not respond;  retried 3 times, then gave up.",
+  ];
+  for (const msg of kept) {
     const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
     assert.equal(out.data[0].Message, msg, msg);
   }
 });
 
-test("a URL with parentheses in its path is still reduced", () => {
-  // Eight findings went into delimiting URLs with character classes, each
-  // teaching the class one more character. Whitespace is the only reliable
-  // boundary a URL has in prose, so that is the boundary now.
-  const cases = [
-    ["https://origin.example/video(foo)?token=secret failed", "https://origin.example/video(foo) failed"],
-    ["origin.example/video(foo)?token=secret failed", "origin.example/video(foo) failed"],
-    ["(see https://x.example/y?t=1)", "(see https://x.example/y)"],
-  ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
-    assert.equal(out.data[0].Message, expected, input);
-  }
-});
-
-test("whitespace and punctuation survive the round trip", () => {
-  // The text is split on whitespace and rejoined with the separators kept, so a
-  // message with nothing to scrub must come back byte-identical.
-  const msg = "origin   did not respond;  retried 3 times, then gave up.";
-  const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
-  assert.equal(out.data[0].Message, msg);
-});
-
-test("a URL wrapped in punctuation is still reduced", () => {
-  // Peeling only the trailing punctuation was half the job: a URL quoted in
-  // prose is as often wrapped, and a leading `(` defeated every anchored check
-  // inside the token.
-  const cases = [
-    ["(https://user:pass@origin.example/file)", "(https://origin.example/file)"],
-    ['"https://user:pass@origin.example/file"', '"https://origin.example/file"'],
-    ["[//user:pass@origin.example/f?token=x]", "[//origin.example/f]"],
-  ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
-    assert.equal(out.data[0].Message, expected, input);
-  }
-});
-
-test("a labelled diagnostic target is still reduced", () => {
-  const cases = [
-    ["fetch_url=https://user:pass@origin.example/file?token=secret failed", "fetch_url=https://origin.example/file failed"],
-    ["url=origin.example/f?token=x failed", "url=origin.example/f failed"],
-    // `origin:user:pass@host` is NOT a label — peeling `origin:` would split the
-    // credential so neither half matched. The userinfo rule takes it whole.
-    ["origin:user:pass@origin.example/f failed", "origin.example/f failed"],
-  ];
-  for (const [input, expected] of cases) {
-    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
-    assert.equal(out.data[0].Message, expected, input);
-  }
+test("both the structured target and the prose about it are covered", () => {
+  // Url and Path go through scrubUrl — a real URL parser, on a field that IS a
+  // URL. The prose beside them goes through the token rule.
+  const out = projectResponse("/12345/08-26-2026", [{
+    Timestamp: 1,
+    Url: "https://origin/x?token=secret",
+    Path: "/callback?token=secret",
+    StatusCode: 502,
+    ErrorCode: "http_timeout",
+    Message: "failed fetching https://svc:pw@origin/x?token=secret",
+  }]);
+  const e = out.data[0];
+  assert.equal(e.Url, "https://origin/x", "a URL field is reduced, not withheld");
+  assert.equal(e.Path, "/callback");
+  assert.equal(e.StatusCode, 502);
+  assert.equal(e.ErrorCode, "http_timeout");
+  assert.equal(e.Message, "failed fetching (withheld: URL)");
 });

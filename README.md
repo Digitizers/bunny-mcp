@@ -42,11 +42,23 @@ BUNNY_READONLY=0   # register the write tools too — 0/false/no/off, nothing el
 
 A non-2xx response never reaches the response interceptor — axios routes it to the rejection handler — so error bodies get their own boundary. Bunny quotes submitted values back in validation messages, and what these tools submit includes edge-script secrets, so the rule keys on the **request**: a request that carried no body cannot have its own payload echoed at it and keeps its message; a request that carried one has the message withheld, with the status and `ErrorKey` still saying what went wrong.
 
-### Diagnostics are scrubbed, not dropped
+### Diagnostics keep the sentence and lose the target
 
-An origin error log and a transcoding failure both quote the request that failed, and that request is the one an operator signs. Those fields are kept — a diagnostic that will not say what failed is not worth returning — with any URL inside them reduced the same way `OriginUrl` is.
+An origin error log and a transcoding failure both quote the request that failed, and that request is the one an operator signs. Those fields are kept — a diagnostic that will not say what failed is not worth returning — but the target inside them is **withheld whole**, not edited:
 
-This is the one place the projector is **best-effort rather than exhaustive**: prose has no vocabulary to allow-list, so it reduces what it recognises as a URL and cannot promise there is nothing else in the sentence. Fields whose *whole* content is operator-authored — a DNS `Comment`, a release `Note`, `CustomHTML` — are dropped instead, for exactly that reason.
+```
+failed fetching https://svc:pw@origin/x?token=secret after 10s
+                              ↓
+failed fetching (withheld: URL) after 10s
+```
+
+A whitespace-delimited token is withheld when it carries an `@`, or a `?`/`#` on something containing a `.` or `/`. Nothing is parsed, so there is no interior for a new URL shape to hide in — nine review findings were spent teaching an earlier reducer the shapes prose can take, and each one found the shape the last had not met.
+
+A token with none of those marks is returned exactly as written, so `https://origin.example/ok`, `origin.example/file`, `#3` and `3.5` are untouched: a plain target carries nothing, and which host failed is most of a diagnostic's value.
+
+The **structured** target fields — a log's `Url` and `Path` — are reduced rather than withheld, because a field that IS a URL can be cut precisely.
+
+What this does not catch, said plainly: a secret embedded in a path segment, as in `/download/sk_live_x/file`. Nothing short of understanding the operator's own URL scheme would.
 
 ### Edge-script source is withheld by default
 
