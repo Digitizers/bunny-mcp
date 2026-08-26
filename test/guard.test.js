@@ -340,3 +340,19 @@ test("a differently-cased JSON media type still reaches the projector", () => {
     assert.equal("Password" in res.data[0], false, `content-type ${ct} must not bypass the projector`);
   }
 });
+
+test("no tool asks Bunny for credentials the projector will discard", () => {
+  // Twice: `includeAccessKey` on video libraries, `includeCertificate` on pull
+  // zones. Both advertised a capability this server will not provide, and both
+  // pulled secrets across the wire — TLS PRIVATE KEYS, in the second case —
+  // into this process purely to be dropped. A third would be a pattern.
+  const dir = new URL("../lib/tools/", import.meta.url);
+  const asking = [];
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".js"))) {
+    const src = readFileSync(new URL(file, dir), "utf-8");
+    for (const m of src.matchAll(/^(?!\s*\/\/).*\b(include(?:AccessKey|Certificate|ApiKey|Password|Secret|Key)s?)\b/gim)) {
+      asking.push(`${file}: ${m[1]}`);
+    }
+  }
+  assert.deepEqual(asking, [], `these ask Bunny to send credentials that are then discarded: ${asking.join(", ")}`);
+});

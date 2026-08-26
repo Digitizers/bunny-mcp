@@ -690,3 +690,19 @@ test("an ordinary hash in prose survives", () => {
   const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: "see section #3 for details" }]);
   assert.equal(out.data[0].Message, "see section #3 for details");
 });
+
+test("a pull zone returns the caching and shielding configuration it advertises", () => {
+  const out = projectResponse("/pullzone/1", {
+    Id: 1, Name: "z",
+    EnableOriginShield: true, OriginShieldZoneCode: "FR",
+    EnableQueryStringSort: true, QueryStringVaryParameters: ["v", "lang"],
+    OptimizerImageQuality: 82, BlockedIps: ["203.0.113.9"],
+    Hostnames: [{ Id: 1, Value: "cdn.example.com", CertificateKey: "-----BEGIN PRIVATE KEY-----" }],
+  });
+  assert.equal(out.data.EnableOriginShield, true, "bunny_update_pull_zone names this field");
+  assert.equal(out.data.OriginShieldZoneCode, "FR");
+  assert.deepEqual(out.data.QueryStringVaryParameters, ["v", "lang"]);
+  assert.equal(out.data.OptimizerImageQuality, 82);
+  assert.deepEqual(out.data.BlockedIps, ["203.0.113.9"]);
+  assert.equal("CertificateKey" in out.data.Hostnames[0], false, "and the private key still never appears");
+});
