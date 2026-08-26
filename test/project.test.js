@@ -385,3 +385,26 @@ test("a private registry URL goes through the same reduction as an origin", () =
   ]);
   assert.equal(out.data[0].registryUrl, "https://registry.example.com/v2");
 });
+
+test("a video library reports the watermark and transcription settings it advertises", () => {
+  const out = projectResponse("/videolibrary/9", {
+    Id: 9, Name: "clips",
+    WatermarkPositionLeft: 10, WatermarkPositionTop: 5, WatermarkWidth: 100, WatermarkHeight: 40,
+    EnableTranscribing: true, TranscribingCaptionLanguages: ["en", "he"],
+    ApiKey: "k",
+  });
+  assert.equal(out.data.WatermarkWidth, 100, "the tool's own description promises watermark settings");
+  assert.equal(out.data.EnableTranscribing, true);
+  assert.deepEqual(out.data.TranscribingCaptionLanguages, ["en", "he"]);
+  assert.equal("ApiKey" in out.data, false, "and still no key");
+});
+
+test("a Magic Container app reports where its volumes are mounted", () => {
+  const out = projectResponse("/mc/apps/abc", {
+    id: "abc", name: "svc",
+    volumes: [{ id: "v1", name: "data", mountPath: "/data", sizeGb: 20, status: "attached", secretRef: "s3cret" }],
+  });
+  assert.equal(out.data.volumes[0].mountPath, "/data");
+  assert.equal(out.data.volumes[0].sizeGb, 20);
+  assert.equal("secretRef" in out.data.volumes[0], false, "a field nobody vetted still drops");
+});
