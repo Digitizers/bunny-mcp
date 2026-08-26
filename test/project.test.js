@@ -699,6 +699,16 @@ test("every shape that ever leaked is withheld whole", () => {
   }
 });
 
+test("a fragment-only token is withheld whatever it is made of", () => {
+  // A number means nothing on its own. `#123456` is a section reference and a
+  // PIN and a session id, written identically, so the exemption that let a
+  // diagnostic say `see section #3` also returned the PIN verbatim. Both go.
+  for (const token of ["#3", "#42", "#123456", "#top", "#access_token=x"]) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: `failed at ${token} after 10s` }]);
+    assert.equal(out.data[0].Message, "failed at (withheld: URL) after 10s", token);
+  }
+});
+
 test("a plain target and ordinary prose are returned as written", () => {
   // A target with no userinfo, query or fragment carries nothing, and which
   // host failed is most of a diagnostic's value.
@@ -706,8 +716,6 @@ test("a plain target and ordinary prose are returned as written", () => {
     "https://origin.example/ok is fine",
     "origin.example/file was not found",
     "timeout after 10s: origin did not respond",
-    "see section #3 for details",
-    "see section #42 for details",
     "wat ? really",
     "why? because it timed out",
     "is it ready? not yet",
