@@ -736,3 +736,26 @@ test("both the structured target and the prose about it are covered", () => {
   assert.equal(e.ErrorCode, "http_timeout");
   assert.equal(e.Message, "failed fetching (withheld: URL)");
 });
+
+test("a primitive where a shape was expected is refused, not passed", () => {
+  // Returning a primitive as-is treated "there are no fields to pick" as "there
+  // is nothing here to hide". A double-encoded /user arrives as a JSON STRING
+  // with the account's ApiKey inside it, and a string has no fields at all.
+  assert.throws(
+    () => projectResponse("/user", JSON.stringify({ Id: 1, ApiKey: "the-account-key" })),
+    /expected an object and received string/,
+  );
+  assert.throws(
+    () => projectResponse("/pullzone", [1, 2]),
+    /expected an object and received number/,
+  );
+  assert.throws(
+    () => projectResponse("/compute/script/1/secrets", ["sk_live_x"]),
+    /expected an object/,
+  );
+
+  // A route that legitimately answers with a primitive says so: /code is RAW.
+  const raw = projectResponse("/compute/script/1/code", "const KEY='x';");
+  assert.equal(raw.ok, true);
+  assert.equal(raw.raw, true);
+});
