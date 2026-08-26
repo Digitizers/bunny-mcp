@@ -269,3 +269,45 @@ test("an edge-rule write answers with the rule, so it is projected like a read",
   assert.equal("ActionParameter2" in out.data, false);
   assert.equal(shapeFor("/pullzone/1/edgerules/5/setEdgeRuleEnabled"), PASSTHROUGH, "status-only stays passthrough");
 });
+
+// ─── What the structural rule must NOT cost ──────────────────────────────────
+
+test("a video keeps its chapters, moments and transcoding notes", () => {
+  const out = projectResponse("/library/5/videos/abc", {
+    guid: "abc", title: "v",
+    chapters: [{ title: "Intro", start: 0, end: 30 }],
+    moments: [{ label: "demo", timestamp: 90 }],
+    transcodingMessages: [{ level: 1, issueCode: 3, message: "low bitrate" }],
+    metaTags: [{ property: "token", value: "sk_live_x" }],
+  });
+  assert.equal(out.data.chapters[0].title, "Intro", "the tool promises chapters");
+  assert.equal(out.data.moments[0].timestamp, 90);
+  assert.equal(out.data.transcodingMessages[0].message, "low bitrate");
+  assert.equal("metaTags" in out.data, false, "a free-form operator bag stays dropped");
+});
+
+test("a video library reports whether token auth is on, without any key", () => {
+  // The same distinction PULL_ZONE draws: the STATE is the operational answer,
+  // the KEY is the secret. Knowing signing is on requires no key.
+  const out = projectResponse("/videolibrary/9", {
+    Id: 9, Name: "clips",
+    EnableTokenAuthentication: true, EnableTokenIPVerification: false,
+    ApiKey: "k", WebhookSignatureKey: "w",
+  });
+  assert.equal(out.data.EnableTokenAuthentication, true);
+  assert.equal(out.data.EnableTokenIPVerification, false);
+  assert.equal("ApiKey" in out.data, false);
+  assert.equal("WebhookSignatureKey" in out.data, false);
+});
+
+test("a WAF rule's match conditions survive; its action parameters do not", () => {
+  const out = projectResponse("/shield/waf/rules/7", {
+    id: 1, name: "block bots", enabled: true,
+    variables: [{ type: "REQUEST_HEADERS", matchValues: ["user-agent"] }],
+    actionParameters: { header: "Authorization", value: "Bearer sk_live_x" },
+    ruleConfiguration: { raw: "sk_live_x" },
+  });
+  assert.equal(out.data.variables[0].matchValues[0], "user-agent", "a rule you cannot read cannot be reviewed");
+  assert.equal("actionParameters" in out.data, false);
+  assert.equal("ruleConfiguration" in out.data, false);
+});
