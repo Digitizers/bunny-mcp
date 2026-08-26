@@ -8,12 +8,29 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverPath = join(__dirname, "..", "index.js");
 
-/** Boots the server over stdio with the given extra environment. */
+/**
+ * Every variable that decides WHICH tools register. A test names the ones it
+ * wants; the rest must be absent, not inherited.
+ */
+const MODE_VARS = ["BUNNY_READONLY", "BUNNY_ALLOW_SOURCE", "BUNNY_STREAM_KEY", "BUNNY_STORAGE_KEY"];
+
+/**
+ * Boots the server over stdio with the given extra environment.
+ *
+ * The ambient environment is cleared of the mode variables first. Inheriting
+ * them meant a developer with `BUNNY_READONLY=0` exported failed the read-only
+ * suite on correct code, and an exported `BUNNY_STREAM_KEY` silently inflated
+ * the core-tool count the README assertions are built from — a test claiming to
+ * exercise a configuration it had not actually set.
+ */
 async function boot(extraEnv) {
+  const base = { ...process.env };
+  for (const v of MODE_VARS) delete base[v];
+
   const transport = new StdioClientTransport({
     command: "node",
     args: [serverPath],
-    env: { ...process.env, BUNNY_API_KEY: process.env.BUNNY_API_KEY || "test-key-for-server-startup", ...extraEnv },
+    env: { ...base, BUNNY_API_KEY: process.env.BUNNY_API_KEY || "test-key-for-server-startup", ...extraEnv },
   });
   const client = new Client({ name: "test-client", version: "1.0.0" });
   await client.connect(transport);
