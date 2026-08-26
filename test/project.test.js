@@ -684,6 +684,8 @@ test("every shape that ever leaked is withheld whole", () => {
     "origin.example/video(foo)?token=secret",               // parenthesis in the path
     "(https://user:pass@origin.example/file)",              // wrapped in punctuation
     "fetch_url=https://user:pass@origin.example/file",      // behind a label
+    "fetch_url=callback?token=secret",                      // relative, no dot or slash
+    "callback#access_token=secret",                         // relative fragment
   ];
   for (const target of leaked) {
     const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: `failed for ${target} after 10s` }]);
@@ -700,6 +702,7 @@ test("a plain target and ordinary prose are returned as written", () => {
     "timeout after 10s: origin did not respond",
     "see section #3 for details",
     "why? because it timed out",
+    "is it ready? not yet",
     "ratio was 3.5 and rising",
     "origin   did not respond;  retried 3 times, then gave up.",
   ];

@@ -52,7 +52,7 @@ failed fetching https://svc:pw@origin/x?token=secret after 10s
 failed fetching (withheld: URL) after 10s
 ```
 
-A whitespace-delimited token is withheld when it carries an `@`, or a `?`/`#` on something containing a `.` or `/`. Nothing is parsed, so there is no interior for a new URL shape to hide in — nine review findings were spent teaching an earlier reducer the shapes prose can take, and each one found the shape the last had not met.
+A whitespace-delimited token is withheld when it carries an `@`, or a `?`/`#` with content on both sides of it — which is what separates an attached query from ordinary punctuation: `why? because` has a space after the mark and `#3` has nothing before it. Nothing is parsed, so there is no interior for a new URL shape to hide in — nine review findings were spent teaching an earlier reducer the shapes prose can take, and each one found the shape the last had not met.
 
 A token with none of those marks is returned exactly as written, so `https://origin.example/ok`, `origin.example/file`, `#3` and `3.5` are untouched: a plain target carries nothing, and which host failed is most of a diagnostic's value.
 
