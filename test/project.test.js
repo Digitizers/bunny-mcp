@@ -301,14 +301,27 @@ test("a video library reports whether token auth is on, without any key", () => 
   assert.equal("WebhookSignatureKey" in out.data, false);
 });
 
-test("a WAF rule's match conditions survive; its action parameters do not", () => {
+test("a WAF rule shows WHERE it matches, and its operand only where that is safe", () => {
+  // matchValues is the rule's substance and also its operand. When a rule
+  // matches on a header, a cookie or a query argument, the operand IS the
+  // credential the rule was written around — so the decision is made by WHERE,
+  // from an allow-list of locations that cannot carry one.
   const out = projectResponse("/shield/waf/rules/7", {
     id: 1, name: "block bots", enabled: true,
-    variables: [{ type: "REQUEST_HEADERS", matchValues: ["user-agent"] }],
+    variables: [
+      { type: "REQUEST_HEADERS", matchValues: ["Bearer sk_live_x"] },
+      { type: "REQUEST_URI", matchValues: ["/admin"] },
+    ],
     actionParameters: { header: "Authorization", value: "Bearer sk_live_x" },
     ruleConfiguration: { raw: "sk_live_x" },
   });
-  assert.equal(out.data.variables[0].matchValues[0], "user-agent", "a rule you cannot read cannot be reviewed");
+
+  const [header, uri] = out.data.variables;
+  assert.equal(header.type, "REQUEST_HEADERS", "the rule's shape stays reviewable");
+  assert.ok(!JSON.stringify(header.matchValues).includes("sk_live_x"));
+  assert.match(String(header.matchValues), /1 value\(s\)/, "and says how many were withheld");
+  assert.deepEqual(uri.matchValues, ["/admin"], "a path cannot carry a secret");
+
   assert.equal("actionParameters" in out.data, false);
   assert.equal("ruleConfiguration" in out.data, false);
 });
@@ -511,4 +524,15 @@ test("an account reports which products are on, and no key", () => {
   assert.equal(out.data.IsCdnEnabled, true);
   assert.deepEqual(out.data.FeatureFlags, ["beta"]);
   assert.equal("ApiKey" in out.data, false);
+});
+
+test("a release is identified by when and which, never by its note", () => {
+  const out = projectResponse("/compute/script/3", {
+    Id: 3, Name: "s",
+    Releases: [{ Id: 1, Uuid: "u", Status: 2, DatePublished: "2026-08-26", Note: "deploy key: sk_live_x" }],
+  });
+  const rel = out.data.Releases[0];
+  assert.equal(rel.Uuid, "u");
+  assert.equal(rel.DatePublished, "2026-08-26");
+  assert.equal("Note" in rel, false, "bunny_publish_edge_script accepts an arbitrary note");
 });

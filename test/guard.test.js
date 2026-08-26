@@ -281,3 +281,21 @@ test("the projector's own diagnostics do not quote the query string", () => {
     assert.ok(!err.message.includes("secrettoken"), "the diagnostic must not carry the token");
   }
 });
+
+test("the source policy follows the route, not the Content-Type", () => {
+  // Deciding it inside the non-JSON branch meant a code endpoint answering with
+  // no header — or with application/json — walked past the gate entirely.
+  const http = axios.create();
+  installProjection(http, "api", false);
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  for (const headers of [{}, { "content-type": "application/json" }, { "content-type": "text/plain" }]) {
+    const res = handler({
+      config: { url: "/compute/script/7/code" },
+      headers,
+      data: "const KEY='sk_live_abcdef';",
+    });
+    assert.ok(!String(res.data).includes("sk_live"), `header ${JSON.stringify(headers)} must not bypass the gate`);
+    assert.match(String(res.data), /BUNNY_ALLOW_SOURCE/);
+  }
+});
