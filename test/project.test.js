@@ -223,3 +223,49 @@ test("a pull zone keeps its edge rules but not their free-text parameters", () =
   assert.equal("ActionParameter2" in rule, false, "an operator types credentials here");
   assert.equal("Triggers" in rule, false, "pattern matches carry tokenised URLs");
 });
+
+// ─── Structure is never vetted by naming its parent ──────────────────────────
+
+test("an allow-listed field cannot smuggle an unvetted object through", () => {
+  // Four review rounds, and every leak in this file lived one level below a
+  // name somebody had already vetted: Hostnames held the TLS private key;
+  // EdgeRules got a shape and ExtraActions inside it still carried the
+  // ActionParameter2 that shape existed to drop. So a bare field name may only
+  // carry a scalar — structure survives only where a shape is declared for it.
+  const out = projectResponse("/pullzone/1", {
+    Id: 1,
+    Name: "z",
+    EdgeRules: [{
+      Guid: "g",
+      ActionType: 3,
+      Enabled: true,
+      ExtraActions: [{ ActionType: 4, ActionParameter1: "Authorization", ActionParameter2: "Bearer sk_live_x" }],
+    }],
+  });
+  const extra = out.data.EdgeRules[0].ExtraActions[0];
+  assert.equal(extra.ActionType, 4, "the extra action is still visible");
+  assert.equal("ActionParameter2" in extra, false, "a second header action is where the SECOND credential is typed");
+});
+
+test("a scalar array passes; an object array without a shape does not", () => {
+  const out = projectResponse("/storagezone/1", {
+    Id: 1,
+    Name: "assets",
+    ReplicationRegions: ["DE", "NY"],
+    PullZones: [{ Id: 9, Name: "cdn", Password: "leaked" }],
+  });
+  assert.deepEqual(out.data.ReplicationRegions, ["DE", "NY"], "scalars have no interior to hide in");
+  assert.equal(out.data.PullZones[0].Name, "cdn", "a declared nested shape survives");
+  assert.equal("Password" in out.data.PullZones[0], false);
+});
+
+test("an edge-rule write answers with the rule, so it is projected like a read", () => {
+  // A write path that returns a resource is a read path wearing a different verb.
+  const out = projectResponse("/pullzone/1/edgerules/addOrUpdate", {
+    Guid: "g", ActionType: 3, Enabled: true,
+    ActionParameter1: "Authorization", ActionParameter2: "Bearer sk_live_x",
+  });
+  assert.equal(out.ok, true);
+  assert.equal("ActionParameter2" in out.data, false);
+  assert.equal(shapeFor("/pullzone/1/edgerules/5/setEdgeRuleEnabled"), PASSTHROUGH, "status-only stays passthrough");
+});

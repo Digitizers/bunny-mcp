@@ -24,6 +24,8 @@ It is an **allow-list, not a deny-list**. Stripping known secret names fails the
 
 It **fails closed**. A path with no declared shape returns no data and an error naming the path, rather than the raw payload.
 
+It **does not vet structure by naming its parent.** A bare field name may only carry a scalar, or an array of them; an object survives only where a nested shape is declared for it. Every leak found while reviewing this fork lived one level below a name someone had already vetted — `Hostnames` looked safe and held the TLS private key; `EdgeRules` was given a shape and `ExtraActions` inside it still carried the very parameter that shape existed to drop.
+
 ### 2. Write tools are withheld unless you ask for them
 
 `BUNNY_READONLY` defaults to on. In that mode the write-capable tools are **never registered** — absent from `tools/list`, not merely annotated as risky. An agent cannot call a tool it cannot see, and the MCP `destructiveHint` is advice to a client, not a control.

@@ -172,3 +172,35 @@ test("a network error with no response still propagates", async () => {
   const boom = new Error("ECONNRESET");
   await assert.rejects(() => rejected(boom), (err) => err === boom);
 });
+
+test("a query string counts as a submitted payload", () => {
+  // bunny_purge_url puts the URL to purge in `?url=...` with no body at all,
+  // and a signed URL's token lives in that query string — keying on the body
+  // alone left the one tool whose parameter IS a credential uncovered.
+  const http = axios.create();
+  installProjection(http, "api");
+  const rejected = http.interceptors.response.handlers.filter(Boolean)[0].rejected;
+
+  return Promise.all([
+    assert.rejects(
+      () => rejected({
+        config: { url: "/purge?url=https%3A%2F%2Fcdn%2Ffile%3Ftoken%3Dsecrettoken" },
+        response: { status: 400, data: { Message: "Invalid url: ...token=secrettoken", ErrorKey: "bad" } },
+      }),
+      (err) => {
+        assert.ok(!String(err.response.data.Message).includes("secrettoken"));
+        return true;
+      },
+    ),
+    assert.rejects(
+      () => rejected({
+        config: { url: "/purge", params: { url: "https://cdn/file?token=secrettoken" } },
+        response: { status: 400, data: { Message: "Invalid url: ...token=secrettoken" } },
+      }),
+      (err) => {
+        assert.ok(!String(err.response.data.Message).includes("secrettoken"), "axios params count too");
+        return true;
+      },
+    ),
+  ]);
+});
