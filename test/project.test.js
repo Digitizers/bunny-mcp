@@ -828,3 +828,26 @@ test("prose keeps its punctuation", () => {
     assert.equal(out.data[0].Message, msg, msg);
   }
 });
+
+test("a URL with parentheses in its path is still reduced", () => {
+  // Eight findings went into delimiting URLs with character classes, each
+  // teaching the class one more character. Whitespace is the only reliable
+  // boundary a URL has in prose, so that is the boundary now.
+  const cases = [
+    ["https://origin.example/video(foo)?token=secret failed", "https://origin.example/video(foo) failed"],
+    ["origin.example/video(foo)?token=secret failed", "origin.example/video(foo) failed"],
+    ["(see https://x.example/y?t=1)", "(see https://x.example/y)"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
+    assert.equal(out.data[0].Message, expected, input);
+  }
+});
+
+test("whitespace and punctuation survive the round trip", () => {
+  // The text is split on whitespace and rejoined with the separators kept, so a
+  // message with nothing to scrub must come back byte-identical.
+  const msg = "origin   did not respond;  retried 3 times, then gave up.";
+  const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: msg }]);
+  assert.equal(out.data[0].Message, msg);
+});
