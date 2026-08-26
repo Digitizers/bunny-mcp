@@ -106,3 +106,29 @@ test("a non-JSON body is streamed through untouched", () => {
   });
   assert.equal(res.data, body, "a download is the operator's own content, not account metadata");
 });
+
+test("a JSON file download is not mistaken for a directory listing", () => {
+  // Round-1 P2: the storage tools ask for an arraybuffer, but a stored .json
+  // file comes back as `application/json`. Discriminating on content-type alone
+  // handed the operator's file to the listing projector, which reduced it to
+  // `{}` and reported success. The REQUEST is the discriminator.
+  const http = axios.create();
+  installProjection(http, "storage");
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  const file = Buffer.from(JSON.stringify({ my: "config", nested: { deep: true } }));
+  const res = handler({
+    config: { url: "/assets/config.json", responseType: "arraybuffer" },
+    headers: { "content-type": "application/json" },
+    data: file,
+  });
+  assert.equal(res.data, file, "the operator's own file must survive whole");
+
+  // …while an actual listing on the same host is still projected.
+  const listing = handler({
+    config: { url: "/assets/" },
+    headers: { "content-type": "application/json" },
+    data: [{ ObjectName: "a.png", Password: "leaked" }],
+  });
+  assert.equal("Password" in listing.data[0], false);
+});
