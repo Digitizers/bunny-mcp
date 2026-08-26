@@ -132,3 +132,43 @@ test("a JSON file download is not mistaken for a directory listing", () => {
   });
   assert.equal("Password" in listing.data[0], false);
 });
+
+test("the rejection interceptor projects error bodies", async () => {
+  const http = axios.create();
+  installProjection(http, "api");
+  const rejected = http.interceptors.response.handlers.filter(Boolean)[0].rejected;
+  assert.equal(typeof rejected, "function", "a rejection handler must be installed at all");
+
+  // A write that echoes what it was given.
+  await assert.rejects(
+    () => rejected({
+      config: { url: "/compute/script/1/secrets", data: JSON.stringify({ Value: "sk_live_x" }) },
+      response: { status: 400, data: { Message: "Invalid value: sk_live_x", ErrorKey: "bad" } },
+    }),
+    (err) => {
+      assert.ok(!String(err.response.data.Message).includes("sk_live_x"));
+      assert.equal(err.response.data.ErrorKey, "bad");
+      return true;
+    },
+  );
+
+  // A read cannot have its own payload quoted back.
+  await assert.rejects(
+    () => rejected({
+      config: { url: "/pullzone/999" },
+      response: { status: 404, data: { Message: "Pull zone not found", ErrorKey: "notfound" } },
+    }),
+    (err) => {
+      assert.match(err.response.data.Message, /not found/i, "diagnostics survive a GET");
+      return true;
+    },
+  );
+});
+
+test("a network error with no response still propagates", async () => {
+  const http = axios.create();
+  installProjection(http, "api");
+  const rejected = http.interceptors.response.handlers.filter(Boolean)[0].rejected;
+  const boom = new Error("ECONNRESET");
+  await assert.rejects(() => rejected(boom), (err) => err === boom);
+});

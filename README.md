@@ -34,6 +34,10 @@ The gate fails closed: a tool is registered in read-only mode only if it declare
 BUNNY_READONLY=0   # register the write tools too — 0/false/no/off, nothing else
 ```
 
+### Errors are projected too
+
+A non-2xx response never reaches the response interceptor — axios routes it to the rejection handler — so error bodies get their own boundary. Bunny quotes submitted values back in validation messages, and what these tools submit includes edge-script secrets, so the rule keys on the **request**: a request that carried no body cannot have its own payload echoed at it and keeps its message; a request that carried one has the message withheld, with the status and `ErrorKey` still saying what went wrong.
+
 ### Credential scoping
 
 Use a permission-scoped key from **Account → API → Manage Keys**, never the account master key. The redaction above keeps secrets out of the transcript; it does nothing about what the key itself is allowed to do.

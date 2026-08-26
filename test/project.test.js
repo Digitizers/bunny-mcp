@@ -5,6 +5,7 @@ import {
   projectStorageListing,
   shapeFor,
   normalisePath,
+  projectErrorBody,
   PASSTHROUGH,
 } from "../lib/project.js";
 
@@ -167,4 +168,58 @@ test("an empty payload is not mistaken for a mismatched shape", () => {
   const out = projectResponse("/pullzone/1", {});
   assert.equal(out.ok, true);
   assert.deepEqual(out.data, {});
+});
+
+// ─── Error bodies ────────────────────────────────────────────────────────────
+
+test("an error message is withheld when the request could be quoted back", () => {
+  // Round-3 P2: axios routes a non-2xx to the REJECTION handler, so error
+  // bodies bypassed the response projector entirely — and handleToolError
+  // forwards body.Message verbatim. Bunny quotes submitted values back in
+  // validation errors, and what these tools submit includes edge-script secrets.
+  const body = { Message: "Invalid value: sk_live_abcdef123456", ErrorKey: "invalid.value", HttpCode: 400 };
+
+  const sent = projectErrorBody(body, true);
+  assert.ok(!String(sent.Message).includes("sk_live"), "a submitted value must not come back");
+  assert.equal(sent.ErrorKey, "invalid.value", "the diagnosis survives");
+  assert.equal(sent.HttpCode, 400);
+
+  const notSent = projectErrorBody(body, false);
+  assert.match(notSent.Message, /Invalid value/, "a GET cannot have its own payload echoed — keep the message");
+});
+
+test("an error body's unknown fields never survive", () => {
+  const out = projectErrorBody({ ErrorKey: "e", EchoedRequest: { Password: "hunter2" } }, false);
+  assert.equal("EchoedRequest" in out, false);
+});
+
+test("a string error body is withheld when a payload was sent", () => {
+  // There is no way to tell an echo from a description inside a bare string.
+  assert.match(String(projectErrorBody("Invalid value: sk_live_x", true).Message), /withheld/);
+  assert.equal(projectErrorBody("Not found", false), "Not found");
+});
+
+// ─── Edge rules ──────────────────────────────────────────────────────────────
+
+test("a pull zone keeps its edge rules but not their free-text parameters", () => {
+  const out = projectResponse("/pullzone/1", {
+    Id: 1,
+    Name: "z",
+    EdgeRules: [{
+      Guid: "g1",
+      ActionType: 3,
+      Enabled: true,
+      Description: "add auth header",
+      ActionParameter1: "Authorization",
+      ActionParameter2: "Bearer sk_live_secret",
+      Triggers: [{ PatternMatches: ["https://origin/?token=abc"] }],
+    }],
+  });
+  assert.equal(out.ok, true);
+  const rule = out.data.EdgeRules[0];
+  assert.equal(rule.Description, "add auth header", "the rule is still inspectable");
+  assert.equal(rule.Enabled, true);
+  assert.equal("ActionParameter1" in rule, false);
+  assert.equal("ActionParameter2" in rule, false, "an operator types credentials here");
+  assert.equal("Triggers" in rule, false, "pattern matches carry tokenised URLs");
 });
