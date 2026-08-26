@@ -1,6 +1,6 @@
 # bunny-mcp
 
-MCP server for [Bunny.net](https://bunny.net) — pull zones, DNS, storage, video streaming, edge scripting, Shield/WAF and Magic Containers, from an AI assistant.
+MCP server for [Bunny.net](https://digitizer.li/bunny) — pull zones, DNS, storage, video streaming, edge scripting, Shield/WAF and Magic Containers, from an AI assistant.
 
 A hardened fork of [anvme/bunnycdn-mcp](https://github.com/anvme/bunnycdn-mcp) (MIT). Two things differ, and both exist because pointing the upstream at a real Bunny account publishes credentials.
 
