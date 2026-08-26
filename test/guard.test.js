@@ -259,3 +259,25 @@ test("BUNNY_ALLOW_SOURCE is off unless explicitly on", () => {
     assert.equal(allowSourceFromEnv({ BUNNY_ALLOW_SOURCE: on }), true, on);
   }
 });
+
+test("the projector's own diagnostics do not quote the query string", () => {
+  // A thrown interceptor error carries no `response`, so the rejection
+  // sanitizer never sees it — handleToolError forwards the message as a network
+  // error. The message is output like any other, and bunny_purge_url submits a
+  // signed URL as `?url=…`.
+  const http = axios.create();
+  installProjection(http, "api", true);
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  try {
+    handler({
+      config: { url: "/purge?url=https%3A%2F%2Fcdn%2Ffile%3Ftoken%3Dsecrettoken" },
+      headers: { "content-type": "text/plain" },
+      data: "nope",
+    });
+    assert.fail("expected the undeclared-policy error");
+  } catch (err) {
+    assert.match(err.message, /no declared policy/);
+    assert.ok(!err.message.includes("secrettoken"), "the diagnostic must not carry the token");
+  }
+});

@@ -408,3 +408,12 @@ test("a Magic Container app reports where its volumes are mounted", () => {
   assert.equal(out.data.volumes[0].sizeGb, 20);
   assert.equal("secretRef" in out.data.volumes[0], false, "a field nobody vetted still drops");
 });
+
+test("a DNS record keeps what DNS publishes and drops the operator's private note", () => {
+  const out = projectResponse("/dnszone/1/records/2", {
+    Id: 2, Type: 0, Name: "www", Value: "203.0.113.4",
+    Comment: "origin basic auth: svc / s3cret",
+  });
+  assert.equal(out.data.Value, "203.0.113.4", "DNS answers this to anyone who asks");
+  assert.equal("Comment" in out.data, false, "a control-plane note never leaves Bunny — until now");
+});
