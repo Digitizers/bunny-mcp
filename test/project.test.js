@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   projectResponse,
   projectStorageListing,
@@ -416,4 +417,50 @@ test("a DNS record keeps what DNS publishes and drops the operator's private not
   });
   assert.equal(out.data.Value, "203.0.113.4", "DNS answers this to anyone who asks");
   assert.equal("Comment" in out.data, false, "a control-plane note never leaves Bunny — until now");
+});
+
+// ─── The comments and the code must agree ────────────────────────────────────
+
+test("no shape allow-lists a field its own comment says it excludes", () => {
+  // Round 12's P1: WAF_RULE carried `actionParameters` in the list AND a
+  // comment saying it was excluded. The structural rule hid it — an object
+  // value dropped for having no declared shape — so it only leaked when Bunny
+  // returned the field as a plain string. A comment is not enforcement; this is.
+  const src = readFileSync(new URL("../lib/project.js", import.meta.url), "utf-8");
+  const shapes = [...src.matchAll(/^const ([A-Z_][A-Z0-9_]*) = \[\n([\s\S]*?)\n\];/gm)];
+  assert.ok(shapes.length > 5, "the shapes must actually be found");
+
+  const contradictions = [];
+  for (const [, name, body] of shapes) {
+    const listed = new Set([...body.matchAll(/"([A-Za-z0-9_]+)"/g)].map((m) => m[1]));
+    for (const line of body.split("\n")) {
+      const not = line.match(/\/\/\s*NOT:\s*(.+)$/);
+      if (!not) continue;
+      // Only the NAMES, which run until the first em dash or full stop — the
+      // prose after that explains the reason and mentions fields that are kept.
+      const names = not[1].split(/[—.]/)[0];
+      for (const word of names.matchAll(/\b([A-Za-z][A-Za-z0-9_]{2,})\b/g)) {
+        if (listed.has(word[1])) contradictions.push(`${name}: "${word[1]}" is excluded by comment and present in the list`);
+      }
+    }
+  }
+  assert.deepEqual(contradictions, [], contradictions.join("\n  "));
+});
+
+test("a Magic Container app names its variables without revealing them", () => {
+  const out = projectResponse("/mc/apps/abc", {
+    id: "abc", name: "svc",
+    environmentVariables: [{ id: "e1", name: "API_KEY", required: true, isSecret: true, value: "sk_live_x" }],
+  });
+  const env = out.data.environmentVariables[0];
+  assert.equal(env.name, "API_KEY", "knowing a variable exists is the half an operator can act on");
+  assert.equal(env.required, true);
+  assert.equal("value" in env, false);
+});
+
+test("a WAF rule's action parameters never come back, scalar or object", () => {
+  for (const params of ["Bearer sk_live_x", { header: "Authorization", value: "Bearer sk_live_x" }]) {
+    const out = projectResponse("/shield/waf/rules/7", { id: 1, name: "r", action: 2, actionParameters: params });
+    assert.equal("actionParameters" in out.data, false, `scalar or object: ${typeof params}`);
+  }
 });
