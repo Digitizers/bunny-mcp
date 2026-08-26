@@ -706,3 +706,45 @@ test("a pull zone returns the caching and shielding configuration it advertises"
   assert.deepEqual(out.data.BlockedIps, ["203.0.113.9"]);
   assert.equal("CertificateKey" in out.data.Hostnames[0], false, "and the private key still never appears");
 });
+
+test("global search returns matches without their secrets", () => {
+  // Not a reported finding — found sweeping every PASSTHROUGH route for "does
+  // this answer with a RESOURCE?". bunny_global_search is a READ tool available
+  // in the default mode, and it answers with every shape whose secrets the rest
+  // of this file exists to remove.
+  const out = projectResponse("/search?search=x", {
+    PullZones: [{ Id: 1, Name: "z", ZoneSecurityKey: "secret" }],
+    StorageZones: [{ Id: 2, Name: "s", Password: "pw", ReadOnlyPassword: "ro" }],
+    VideoLibraries: [{ Id: 3, Name: "v", ApiKey: "k" }],
+    SomethingBunnyAddsLater: [{ Secret: "x" }],
+  });
+  const json = JSON.stringify(out.data);
+  for (const secret of ["secret", "\"pw\"", "\"ro\"", "\"k\""]) {
+    assert.ok(!json.includes(secret), `search leaked ${secret}`);
+  }
+  assert.equal(out.data.PullZones[0].Name, "z", "and the search still answers");
+  assert.equal("SomethingBunnyAddsLater" in out.data, false, "an unvetted container drops");
+});
+
+test("a publish answers with the release, and the release has no note", () => {
+  const out = projectResponse("/compute/script/3/publish", {
+    Id: 9, Uuid: "u", Status: 1, DatePublished: "2026-08-26", Note: "deploy key sk_live_x",
+  });
+  assert.equal(out.data.Uuid, "u");
+  assert.equal("Note" in out.data, false);
+});
+
+test("every PASSTHROUGH route is a status or a statistic, never a resource", () => {
+  // The rule the publish finding taught, written down: a write that returns a
+  // resource is a read wearing a different verb, and a passthrough on such a
+  // route is the projector switched off.
+  const src = readFileSync(new URL("../lib/project.js", import.meta.url), "utf-8");
+  const routes = src.slice(src.indexOf("const ROUTES = ["));
+  const passthrough = [...routes.matchAll(/\[(\/[^,]+\/i), PASSTHROUGH\]/g)].map((m) => m[1]);
+  assert.ok(passthrough.length > 0, "there should still be some");
+
+  const resourceish = passthrough.filter((r) =>
+    !/statistic|metric|overview|purge|Hostname|setEdgeRuleEnabled|heatmap|reencode|code|billing|country|region|deploy|undeploy|restart|start|stop|\[a-z-\]\+|profiles/i.test(r),
+  );
+  assert.deepEqual(resourceish, [], `these passthrough routes may answer with a resource: ${resourceish.join(", ")}`);
+});
