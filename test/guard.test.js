@@ -95,18 +95,18 @@ test("an undeclared path throws rather than returning the raw payload", () => {
 });
 
 test("a storage file download is streamed through untouched", () => {
-  // The subject here is the STORAGE client, which serves file content by
-  // definition. This test used to run against the management client and assert
-  // that any non-JSON body passed — the blanket exemption that let edge-script
-  // source through. On the management API a non-JSON body now needs a declared
-  // policy; see the test below.
+  // The DOWNLOAD is identified by the request — `bunny_download_storage_file`
+  // asks for an arraybuffer. This test used to rely on the response's
+  // content-type instead, which is the thing round 30 removed: a header is a
+  // claim by the responder, and a listing mislabelled `image/png` would have
+  // skipped the allow-list on the strength of it.
   const http = axios.create();
   installProjection(http, "storage");
   const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
 
   const body = Buffer.from("binary file content");
   const res = handler({
-    config: { url: "/assets/logo.png" },
+    config: { url: "/assets/logo.png", responseType: "arraybuffer" },
     headers: { "content-type": "image/png" },
     data: body,
   });
@@ -355,4 +355,34 @@ test("no tool asks Bunny for credentials the projector will discard", () => {
     }
   }
   assert.deepEqual(asking, [], `these ask Bunny to send credentials that are then discarded: ${asking.join(", ")}`);
+});
+
+test("a storage listing is projected whatever its response header claims", () => {
+  // A download is identified by the REQUEST asking for an arraybuffer, which is
+  // knowledge about what was asked for. Everything else on that host is a
+  // listing, so the header is not consulted: one mislabelled `text/plain` would
+  // otherwise skip the allow-list entirely, and lower-casing does nothing about
+  // a header that is simply wrong.
+  const http = axios.create();
+  installProjection(http, "storage");
+  const handler = http.interceptors.response.handlers.filter(Boolean)[0].fulfilled;
+
+  for (const ct of ["text/plain", "application/octet-stream", "application/json", undefined]) {
+    const res = handler({
+      config: { url: "/assets/" },
+      headers: ct ? { "content-type": ct } : {},
+      data: [{ ObjectName: "a.png", Password: "leaked" }],
+    });
+    assert.equal("Password" in res.data[0], false, `content-type ${ct} must not bypass the projector`);
+    assert.equal(res.data[0].ObjectName, "a.png");
+  }
+
+  // …while an actual download still passes untouched.
+  const file = Buffer.from("binary");
+  const dl = handler({
+    config: { url: "/assets/logo.png", responseType: "arraybuffer" },
+    headers: { "content-type": "image/png" },
+    data: file,
+  });
+  assert.equal(dl.data, file);
 });

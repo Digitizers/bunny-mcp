@@ -686,6 +686,9 @@ test("every shape that ever leaked is withheld whole", () => {
     "fetch_url=https://user:pass@origin.example/file",      // behind a label
     "fetch_url=callback?token=secret",                      // relative, no dot or slash
     "callback#access_token=secret",                         // relative fragment
+    "?token=secret",                                        // query-only reference
+    "#access_token=secret",                                 // fragment-only reference
+    "?eyJhbGciOiJIUzI1NiJ9",                                // query-only, opaque
   ];
   for (const target of leaked) {
     const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: `failed for ${target} after 10s` }]);
