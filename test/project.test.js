@@ -311,3 +311,36 @@ test("a WAF rule's match conditions survive; its action parameters do not", () =
   assert.equal("actionParameters" in out.data, false);
   assert.equal("ruleConfiguration" in out.data, false);
 });
+
+// ─── Free-form scalars are bags too ──────────────────────────────────────────
+
+test("operator-authored markup does not come back", () => {
+  // Round 5 judged every structured field and left scalars alone. A bag is a
+  // bag whether it arrives as an object or as a string: CustomHTML is where an
+  // embedded player token or an authenticated third-party URL ends up.
+  const out = projectResponse("/videolibrary/9", {
+    Id: 9, Name: "clips",
+    CustomHTML: '<script>const t="sk_live_x";</script>',
+  });
+  assert.equal("CustomHTML" in out.data, false);
+  assert.equal(out.data.Name, "clips");
+});
+
+test("an authenticated origin keeps its address and loses its password", () => {
+  // Bunny accepts an authenticated origin, and the credentials live inside the
+  // URL. Dropping the field hides where the zone points; keeping it whole
+  // publishes the origin's password. So the field comes back, scrubbed.
+  const out = projectResponse("/pullzone/1", {
+    Id: 1, OriginUrl: "https://svc:s3cret@origin.example.com/path",
+  });
+  assert.equal(out.data.OriginUrl, "https://origin.example.com/path");
+  assert.ok(!out.data.OriginUrl.includes("s3cret"));
+
+  const plain = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "https://origin.example.com" });
+  assert.equal(plain.data.OriginUrl, "https://origin.example.com", "an ordinary origin is untouched");
+});
+
+test("an unparseable origin with userinfo is withheld rather than guessed at", () => {
+  const out = projectResponse("/pullzone/1", { Id: 1, OriginUrl: "not a url: svc:s3cret@host" });
+  assert.ok(!String(out.data.OriginUrl).includes("s3cret"));
+});

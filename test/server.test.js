@@ -35,6 +35,10 @@ const READ_TOOLS = [
   "bunny_list_shield_zones",
   "bunny_list_mc_apps",
   "bunny_get_origin_errors",
+  // A read action that used to be trapped inside a mixed-operation tool: the
+  // gate keys on a TOOL's annotation, so a GET was withheld for its
+  // neighbours' sake until it got its own registration.
+  "bunny_list_edge_script_variables",
 ];
 
 // Tools that change or destroy something. Absent unless the gate is opened.
