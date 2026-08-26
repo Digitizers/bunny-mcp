@@ -579,3 +579,43 @@ test("bot detection has its own shape, not the whole zone's", () => {
   assert.equal(out.data.threshold, 20, "the tool advertises thresholds");
   assert.deepEqual(out.data.categories, ["scraper"]);
 });
+
+// ─── Diagnostics quote the request that failed ───────────────────────────────
+
+test("an origin error log reduces the URL it is about", () => {
+  // The URL is the point of the log — an operator debugging a 502 needs to know
+  // which request failed — so it is reduced rather than dropped, and the prose
+  // around it is scrubbed for URLs quoted inside.
+  const out = projectResponse("/12345/08-26-2026", [{
+    Timestamp: 1,
+    Url: "https://origin.example.com/f?token=secret",
+    ErrorCode: "http_timeout",
+    Message: "failed fetching https://svc:pw@origin.example.com/f?token=secret after 10s",
+    Junk: "unvetted",
+  }]);
+  const e = out.data[0];
+  assert.equal(e.Url, "https://origin.example.com/f", "which request failed is still legible");
+  assert.equal(e.ErrorCode, "http_timeout");
+  assert.ok(!e.Message.includes("token=secret"));
+  assert.ok(!e.Message.includes("svc:pw"));
+  assert.match(e.Message, /failed fetching .* after 10s/, "the sentence still reads");
+  assert.equal("Junk" in e, false, "and an unvetted field still drops");
+});
+
+test("a transcoding diagnostic scrubs the fetch URL it names", () => {
+  const out = projectResponse("/library/5/videos/abc", {
+    guid: "abc",
+    transcodingMessages: [{ level: 2, issueCode: 9, message: "fetch failed for https://cdn/x?sig=abc" }],
+  });
+  const note = out.data.transcodingMessages[0];
+  assert.equal(note.issueCode, 9, "the code is the diagnosis");
+  assert.ok(!note.message.includes("sig=abc"));
+});
+
+test("scrubText leaves prose that contains no URL alone", () => {
+  const out = projectResponse("/library/5/videos/abc", {
+    guid: "abc",
+    transcodingMessages: [{ level: 1, message: "bitrate below the recommended minimum" }],
+  });
+  assert.equal(out.data.transcodingMessages[0].message, "bitrate below the recommended minimum");
+});

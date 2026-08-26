@@ -42,6 +42,12 @@ BUNNY_READONLY=0   # register the write tools too — 0/false/no/off, nothing el
 
 A non-2xx response never reaches the response interceptor — axios routes it to the rejection handler — so error bodies get their own boundary. Bunny quotes submitted values back in validation messages, and what these tools submit includes edge-script secrets, so the rule keys on the **request**: a request that carried no body cannot have its own payload echoed at it and keeps its message; a request that carried one has the message withheld, with the status and `ErrorKey` still saying what went wrong.
 
+### Diagnostics are scrubbed, not dropped
+
+An origin error log and a transcoding failure both quote the request that failed, and that request is the one an operator signs. Those fields are kept — a diagnostic that will not say what failed is not worth returning — with any URL inside them reduced the same way `OriginUrl` is.
+
+This is the one place the projector is **best-effort rather than exhaustive**: prose has no vocabulary to allow-list, so it reduces what it recognises as a URL and cannot promise there is nothing else in the sentence. Fields whose *whole* content is operator-authored — a DNS `Comment`, a release `Note`, `CustomHTML` — are dropped instead, for exactly that reason.
+
 ### Edge-script source is withheld by default
 
 `/compute/script/<id>/code` returns the script's source, and source carries hard-coded keys about as readily as any other operator-authored text — `CustomHTML` is dropped for exactly that reason. So the body is withheld and the response says how to release it:
