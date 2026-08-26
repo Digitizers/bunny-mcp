@@ -689,6 +689,8 @@ test("every shape that ever leaked is withheld whole", () => {
     "?token=secret",                                        // query-only reference
     "#access_token=secret",                                 // fragment-only reference
     "?eyJhbGciOiJIUzI1NiJ9",                                // query-only, opaque
+    "?abc123",                                              // short and opaque — a PIN is a secret too
+    "#abc123",
   ];
   for (const target of leaked) {
     const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: `failed for ${target} after 10s` }]);
@@ -704,6 +706,7 @@ test("a plain target and ordinary prose are returned as written", () => {
     "origin.example/file was not found",
     "timeout after 10s: origin did not respond",
     "see section #3 for details",
+    "see section #42 for details",
     "why? because it timed out",
     "is it ready? not yet",
     "ratio was 3.5 and rising",
