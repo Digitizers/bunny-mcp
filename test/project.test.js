@@ -640,3 +640,38 @@ test("scrubText does not mangle prose that merely contains a colon", () => {
   ]);
   assert.equal(out.data[0].Message, "timeout after 10s: origin did not respond");
 });
+
+test("the top-level operand's verdict does not depend on array order", () => {
+  // Reading variables[0] let a safe REQUEST_PATH sitting in front of a
+  // REQUEST_HEADERS publish the operand on the strength of its neighbour.
+  const mixed = projectResponse("/shield/rate-limits/1", {
+    id: 1, value: "Bearer secret",
+    variables: [{ type: "REQUEST_PATH" }, { type: "REQUEST_HEADERS" }],
+  });
+  assert.ok(!String(mixed.data.value).includes("Bearer secret"), "one unsafe location is enough to withhold");
+
+  const reversed = projectResponse("/shield/rate-limits/1", {
+    id: 1, value: "Bearer secret",
+    variables: [{ type: "REQUEST_HEADERS" }, { type: "REQUEST_PATH" }],
+  });
+  assert.deepEqual(mixed.data.value, reversed.data.value, "and the order cannot change the answer");
+});
+
+test("a query string in prose is removed whatever precedes it", () => {
+  // Three rounds went into recognising URL shapes. The thing worth removing is
+  // the query construct itself.
+  const cases = [
+    ["origin.example/file?token=secret failed", "origin.example/file failed"],
+    ["//origin.example/file?token=secret failed", "//origin.example/file failed"],
+    ["https://origin.example/file?token=secret failed", "https://origin.example/file failed"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
+    assert.equal(out.data[0].Message, expected, input);
+  }
+});
+
+test("an ordinary question mark in prose survives", () => {
+  const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: "why? because it timed out" }]);
+  assert.equal(out.data[0].Message, "why? because it timed out");
+});
