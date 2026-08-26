@@ -4,6 +4,20 @@ MCP server for [Bunny.net](https://bunny.net) — pull zones, DNS, storage, vide
 
 A hardened fork of [anvme/bunnycdn-mcp](https://github.com/anvme/bunnycdn-mcp) (MIT). Two things differ, and both exist because pointing the upstream at a real Bunny account publishes credentials.
 
+## Part of the Aura Design Engine
+
+These are the skills behind [**Aura**](https://my-aura.app) — one AI web-agency lifecycle you can run standalone or orchestrate across a whole client fleet from a single dashboard.
+
+| Stage | Skill | Role |
+| --- | --- | --- |
+| 🎨 Build | [siteagent-elementor-studio](https://github.com/Digitizers/siteagent-elementor-studio) · [elementor-mcp](https://github.com/Digitizers/elementor-mcp) | Design & build sites inside Elementor — the recipes, and the MCP engine under them |
+| 🔎 Audit + Content | [wordpress-api-pro](https://github.com/Digitizers/wordpress-api-pro) | REST content ops, SEO & site audits |
+| 🖥 Host | [cloudways-mcp](https://github.com/Digitizers/cloudways-mcp) · [hostinger-mcp](https://github.com/Digitizers/hostinger-mcp) | Provision & operate the infrastructure |
+| 🚀 Deliver | [**bunny-mcp** ← you are here](https://github.com/Digitizers/bunny-mcp) | CDN, storage & edge delivery |
+| 🛡 Govern | [aura-mcp](https://github.com/Digitizers/aura-mcp) | Drive the control plane — approvals, snapshots, rollbacks — over MCP |
+
+**→ Orchestrate all of it across your client fleet with [Aura](https://my-aura.app)** — governed agent ops with approvals and a full audit trail on top of these skills.
+
 ## What the fork changes
 
 ### 1. Responses are projected through an allow-list
