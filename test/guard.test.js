@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import axios from "axios";
+import { readdirSync, readFileSync } from "node:fs";
 import { guardRegistration, installProjection, readOnlyFromEnv, allowSourceFromEnv } from "../lib/guard.js";
 
 function fakeServer() {
@@ -298,4 +299,26 @@ test("the source policy follows the route, not the Content-Type", () => {
     assert.ok(!String(res.data).includes("sk_live"), `header ${JSON.stringify(headers)} must not bypass the gate`);
     assert.match(String(res.data), /BUNNY_ALLOW_SOURCE/);
   }
+});
+
+test("no write-annotated tool hides a read path", () => {
+  // Twice now a GET has been withheld because it shared a tool with writes —
+  // edge-script variables, then bot detection. An earlier commit claimed the
+  // first was the only one; it was not. This checks rather than claims.
+  const dir = new URL("../lib/tools/", import.meta.url);
+  const hidden = [];
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".js"))) {
+    const src = readFileSync(new URL(file, dir), "utf-8");
+    const marks = [...src.matchAll(/server\.tool\(\s*"([a-z_]+)"/g)];
+    marks.forEach((m, i) => {
+      const body = src.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : src.length);
+      if (/readOnlyHint:\s*true/.test(body)) return;
+      if (/http\.get\(/.test(body)) hidden.push(`${file}: ${m[1]}`);
+    });
+  }
+  assert.deepEqual(
+    hidden.filter((h) => !h.includes("bunny_manage_edge_script_variables") && !h.includes("bunny_get_bot_detection")),
+    [],
+    `a GET is trapped behind the write gate in: ${hidden.join(", ")}. Register its read path separately.`,
+  );
 });

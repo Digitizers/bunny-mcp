@@ -39,6 +39,7 @@ const READ_TOOLS = [
   // gate keys on a TOOL's annotation, so a GET was withheld for its
   // neighbours' sake until it got its own registration.
   "bunny_list_edge_script_variables",
+  "bunny_read_bot_detection",
 ];
 
 // Tools that change or destroy something. Absent unless the gate is opened.

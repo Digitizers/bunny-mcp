@@ -551,3 +551,31 @@ test("a REQUEST_URI operand keeps its path and loses its query", () => {
   assert.deepEqual(out.data.variables[0].matchValues, ["/callback", "/plain"]);
   assert.deepEqual(out.data.variables[1].matchValues, ["/admin"], "a path has no query to lose");
 });
+
+test("a rate-limit rule scrubs its operand in both representations", () => {
+  // The operand can sit at the TOP level as well as inside variables[], and the
+  // two say the same thing in different shapes. The nested hook covered one.
+  const header = projectResponse("/shield/rate-limits/1", {
+    id: 1, value: "Bearer secret",
+    variables: [{ type: "REQUEST_HEADERS", matchValues: ["Bearer secret"] }],
+  });
+  assert.ok(!String(header.data.value).includes("Bearer secret"));
+  assert.ok(!JSON.stringify(header.data.variables).includes("Bearer secret"));
+
+  const path = projectResponse("/shield/rate-limits/1", {
+    id: 1, value: "/api", variables: [{ type: "REQUEST_PATH", matchValues: ["/api"] }],
+  });
+  assert.equal(path.data.value, "/api", "a path operand is readable");
+
+  const unnamed = projectResponse("/shield/rate-limits/1", { id: 1, value: "Bearer secret" });
+  assert.ok(!String(unnamed.data.value).includes("Bearer secret"), "no stated location means nobody can vouch for it");
+});
+
+test("bot detection has its own shape, not the whole zone's", () => {
+  const out = projectResponse("/shield/shield-zone/5/bot-detection", {
+    shieldZoneId: 5, enabled: true, mode: "challenge", threshold: 20, categories: ["scraper"],
+  });
+  assert.equal(out.ok, true, "a response of only bot fields must not read as a shape mismatch");
+  assert.equal(out.data.threshold, 20, "the tool advertises thresholds");
+  assert.deepEqual(out.data.categories, ["scraper"]);
+});
