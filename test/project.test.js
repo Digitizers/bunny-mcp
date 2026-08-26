@@ -759,3 +759,22 @@ test("a primitive where a shape was expected is refused, not passed", () => {
   assert.equal(raw.ok, true);
   assert.equal(raw.raw, true);
 });
+
+test("an absent optional block comes back as null, not as a failure", () => {
+  // Round 32's refusal over-corrected. Bunny serialises an absent optional
+  // block as null — `autoscaling: null` on an app that does not autoscale,
+  // `wafEngineConfig: null` with WAF off — and there are no contents to vet, so
+  // refusing it would fail an entire valid listing over a field saying
+  // "nothing here".
+  const app = projectResponse("/mc/apps/abc", { id: "abc", name: "svc", autoscaling: null, volumes: null });
+  assert.equal(app.ok, true);
+  assert.equal(app.data.autoscaling, null);
+  assert.equal(app.data.volumes, null);
+  assert.equal(app.data.name, "svc");
+
+  const zone = projectResponse("/shield/shield-zones", [{ id: 1, wafEnabled: false, wafEngineConfig: null }]);
+  assert.equal(zone.data[0].wafEngineConfig, null);
+
+  // …and every other primitive is still refused.
+  assert.throws(() => projectResponse("/user", "a string"), /expected an object/);
+});
