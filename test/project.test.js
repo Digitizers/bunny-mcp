@@ -866,3 +866,17 @@ test("a URL wrapped in punctuation is still reduced", () => {
     assert.equal(out.data[0].Message, expected, input);
   }
 });
+
+test("a labelled diagnostic target is still reduced", () => {
+  const cases = [
+    ["fetch_url=https://user:pass@origin.example/file?token=secret failed", "fetch_url=https://origin.example/file failed"],
+    ["url=origin.example/f?token=x failed", "url=origin.example/f failed"],
+    // `origin:user:pass@host` is NOT a label — peeling `origin:` would split the
+    // credential so neither half matched. The userinfo rule takes it whole.
+    ["origin:user:pass@origin.example/f failed", "origin.example/f failed"],
+  ];
+  for (const [input, expected] of cases) {
+    const out = projectResponse("/12345/08-26-2026", [{ Timestamp: 1, Message: input }]);
+    assert.equal(out.data[0].Message, expected, input);
+  }
+});
