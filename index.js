@@ -6,7 +6,7 @@ import axios from "axios";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { createCache } from "./lib/helpers.js";
+import { createCache, loadApiKey } from "./lib/helpers.js";
 import { guardRegistration, installProjection, readOnlyFromEnv, allowSourceFromEnv } from "./lib/guard.js";
 import { registerAccountTools } from "./lib/tools/account.js";
 import { registerPullZoneTools } from "./lib/tools/pull-zones.js";
@@ -37,9 +37,11 @@ const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
 
 // ─── Validate API Key ────────────────────────────────────────────────────────
 
-const BUNNY_API_KEY = process.env.BUNNY_API_KEY;
+const BUNNY_API_KEY = loadApiKey(process.env, readFileSync);
 if (!BUNNY_API_KEY) {
-  process.stderr.write("Fatal: BUNNY_API_KEY environment variable is required\n");
+  process.stderr.write(
+    "Fatal: set BUNNY_API_KEY, or point BUNNY_API_KEY_FILE at a readable, non-empty file\n"
+  );
   process.exit(1);
 }
 

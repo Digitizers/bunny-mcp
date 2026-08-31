@@ -88,7 +88,11 @@ More generally, a non-JSON body on the management API no longer gets a free pass
 
 ### Credential scoping
 
-Use a permission-scoped key from **Account → API → Manage Keys**, never the account master key. The redaction above keeps secrets out of the transcript; it does nothing about what the key itself is allowed to do.
+Bunny does not offer scoped API keys. The [authentication docs](https://bunny.net/docs/api-reference/authentication) say it plainly: *"You can have only one API key associated with your account."* The dashboard's **Account → API** page can only view and rotate that key, and while the `/apikey` endpoint models multiple keys with roles, neither the UI nor the docs expose creating one. So the key this server runs with is the account key, and the mitigations are:
+
+- **`BUNNY_API_KEY_FILE`** — point it at a mode-`0600` file and the server reads the key at spawn, so no MCP client config ever holds the value. `BUNNY_API_KEY` still works and wins when both are set.
+- **`BUNNY_READONLY`** stays on, so write tools are never registered.
+- The response projection keeps the key - and every other credential Bunny echoes - out of the transcript. Rotate the key from that same page if it is ever exposed; a rotation invalidates the old value immediately.
 
 ---
 

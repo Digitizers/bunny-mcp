@@ -165,3 +165,32 @@ describe("reusable zod params", () => {
     assert.ok(schema.description.includes("Pull Zone"));
   });
 });
+
+// ─── loadApiKey ─────────────────────────────────────────────────────────────
+
+import { loadApiKey } from "../lib/helpers.js";
+
+describe("loadApiKey", () => {
+  const readOk = () => "  key-from-file\n";
+  const readThrows = () => { throw new Error("ENOENT"); };
+
+  it("prefers BUNNY_API_KEY over the file", () => {
+    assert.equal(loadApiKey({ BUNNY_API_KEY: "env-key", BUNNY_API_KEY_FILE: "/x" }, readOk), "env-key");
+  });
+
+  it("reads and trims the file when only BUNNY_API_KEY_FILE is set", () => {
+    assert.equal(loadApiKey({ BUNNY_API_KEY_FILE: "/x" }, readOk), "key-from-file");
+  });
+
+  it("returns null when the file cannot be read", () => {
+    assert.equal(loadApiKey({ BUNNY_API_KEY_FILE: "/x" }, readThrows), null);
+  });
+
+  it("returns null for a whitespace-only file", () => {
+    assert.equal(loadApiKey({ BUNNY_API_KEY_FILE: "/x" }, () => "  \n"), null);
+  });
+
+  it("returns null when neither variable is set", () => {
+    assert.equal(loadApiKey({}, readOk), null);
+  });
+});
