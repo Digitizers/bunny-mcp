@@ -1,0 +1,15 @@
+{
+  "_comment": "Committed connection config — never a real key. BUNNY_API_KEY comes from the machine's environment (shell env, or the environment's env vars in cloud sessions); the :- default keeps this parseable when unset, and the connection then shows as unavailable in /mcp until the key is provided. The server runs from the committed bundle, so a plugin install needs no npm install. BUNNY_READONLY stays at its safe default: write-capable tools are not registered at all unless a machine sets it to 0 deliberately.",
+  "mcpServers": {
+    "bunny": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT:-.}/dist/bundle.mjs"],
+      "env": {
+        "BUNNY_API_KEY": "${BUNNY_API_KEY:-}",
+        "BUNNY_READONLY": "${BUNNY_READONLY:-1}",
+        "BUNNY_ALLOW_SOURCE": "${BUNNY_ALLOW_SOURCE:-0}"
+      }
+    }
+  }
+}

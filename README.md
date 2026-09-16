@@ -385,6 +385,8 @@ This MCP server connects to the [bunny.net API](https://docs.bunny.net/reference
 
 Those are the totals with the write gate open. **By default `BUNNY_READONLY` is on and 41 of the 70 register** — the 29 write-capable ones are withheld, per [section 2](#2-write-tools-are-withheld-unless-you-ask-for-them). The `Mode` column in the catalog says which is which.
 
+Both counts assume all three keys. With `BUNNY_API_KEY` alone the core tools are all there is: **33** registered read-only, **56** with the gate open.
+
 All read operations are cached in-memory with a short TTL for performance. Every tool includes MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) so clients can make informed decisions about tool approval.
 
 ## License
