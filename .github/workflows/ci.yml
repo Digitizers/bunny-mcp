@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Both jobs only read the checkout. Spelling that out keeps the GITHUB_TOKEN
+# from carrying whatever the repo default grants (CodeQL flags the omission).
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
