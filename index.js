@@ -4,9 +4,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import axios from "axios";
 import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 import { createCache, loadApiKey } from "./lib/helpers.js";
+import { NAME, VERSION, DESCRIPTION } from "./lib/meta.js";
 import { guardRegistration, installProjection, readOnlyFromEnv, allowSourceFromEnv } from "./lib/guard.js";
 import { registerAccountTools } from "./lib/tools/account.js";
 import { registerPullZoneTools } from "./lib/tools/pull-zones.js";
@@ -32,9 +31,6 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
-
 // ─── Validate API Key ────────────────────────────────────────────────────────
 
 const BUNNY_API_KEY = loadApiKey(process.env, readFileSync);
@@ -47,7 +43,7 @@ if (!BUNNY_API_KEY) {
 
 // ─── HTTP Clients ────────────────────────────────────────────────────────────
 
-const ua = `${pkg.name}/${pkg.version}`;
+const ua = `${NAME}/${VERSION}`;
 
 const coreHttp = axios.create({
   baseURL: "https://api.bunny.net",
@@ -102,9 +98,9 @@ const cache = createCache({ ttl: 3 * 60 * 1000, max: 300 });
 // ─── Server ──────────────────────────────────────────────────────────────────
 
 const server = new McpServer({
-  name: pkg.name,
-  description: pkg.description,
-  version: pkg.version,
+  name: NAME,
+  description: DESCRIPTION,
+  version: VERSION,
 });
 
 // ─── Register Tools ──────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
   },
   "scripts": {
     "start": "node index.js",
+    "build": "esbuild index.js --bundle --platform=node --format=esm --outfile=dist/bundle.mjs --banner:js=\"import{createRequire as __cr}from'module';const require=__cr(import.meta.url);\"",
     "test": "node --test test/*.test.js",
     "prepublishOnly": "npm test"
   },
@@ -46,6 +47,9 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "axios": "^1.13.5",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   },
   "files": [
     "index.js",

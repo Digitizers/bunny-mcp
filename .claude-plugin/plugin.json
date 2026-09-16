@@ -1,0 +1,8 @@
+{
+  "name": "bunny-mcp",
+  "displayName": "Bunny MCP",
+  "description": "Operate Bunny.net delivery from an agent — pull zones, DNS, storage, video streaming, edge scripting and Shield/WAF — read-only by default, with credentials stripped from every response.",
+  "author": {
+    "name": "Digitizer"
+  }
+}
