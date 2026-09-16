@@ -1,6 +1,10 @@
 ---
 name: bunny-mcp
-description: Operate Bunny.net delivery through the bunny-mcp server — CDN pull zones and cache purges, DNS zones and records, storage zones and files, video streaming libraries, edge scripting, Shield/WAF and Magic Containers. Use when the task mentions Bunny, bunny.net, b-cdn.net, a pull zone, an edge rule, a CDN purge, Bunny DNS or Bunny Stream, when a site's assets or delivery layer need checking, or when hosting work ends with "clear the CDN". Read-only by default: write tools are not registered until a machine opts in. Not for Cloudflare zones (cloudflare tools), not for origin/server administration (cloudways-mcp, hostinger-mcp), not for WordPress content (wordpress-api-pro).
+description: |
+  Operate Bunny.net delivery through the bunny-mcp server — CDN pull zones and cache purges, DNS zones and records, storage zones and files, video streaming libraries, edge scripting, Shield/WAF and Magic Containers.
+  Use when the task mentions Bunny, bunny.net, b-cdn.net, a pull zone, an edge rule, a CDN purge, Bunny DNS or Bunny Stream, when a site's assets or delivery layer need checking, or when hosting work ends with "clear the CDN".
+  Read-only by default — write tools are not registered until a machine opts in, and credentials are stripped from every response.
+  Not for Cloudflare zones (cloudflare tools), not for origin/server administration (cloudways-mcp, hostinger-mcp), not for WordPress content (wordpress-api-pro).
 ---
 
 # Bunny MCP
