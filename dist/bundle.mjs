@@ -40495,13 +40495,16 @@ function registerStreamVideoTools(server2, http3, cache2) {
     { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true, title: "Create Video" },
     async ({ library_id, title, collection_id, fetch_url }) => {
       try {
-        const body = { title };
-        if (collection_id) body.collectionId = collection_id;
         if (fetch_url) {
-          body.url = fetch_url;
-          const res2 = await http3.post(`/library/${library_id}/videos/fetch`, body);
+          const res2 = await http3.post(
+            `/library/${library_id}/videos/fetch`,
+            { title, url: fetch_url },
+            collection_id ? { params: { collectionId: collection_id } } : void 0
+          );
           return formatResponse(res2.data);
         }
+        const body = { title };
+        if (collection_id) body.collectionId = collection_id;
         const res = await http3.post(`/library/${library_id}/videos`, body);
         return formatResponse(res.data);
       } catch (err) {
