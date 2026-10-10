@@ -1,0 +1,62 @@
+name: Rebuild bundle for Dependabot
+
+# dist/bundle.mjs is committed (the Claude Code plugin runs it with no npm
+# install), so every dependency bump changes it — and Dependabot does not
+# rebuild it. Without this, each Dependabot PR failed CI's bundle check and
+# waited for someone to rebuild and push by hand (#8, #10).
+#
+# This job does that push. It runs only on Dependabot's own PRs, and builds
+# with install scripts disabled: the only thing it executes with a write token
+# is esbuild, which reads the new dependency code but never runs it.
+#
+# A push made with GITHUB_TOKEN starts no workflow, so the job dispatches CI on
+# the rebuilt commit itself; that run is the bundle check for this PR (ci.yml
+# skips its bundle job on Dependabot's own, pre-rebuild commit).
+#
+# Cost: Dependabot stops rebasing a PR once someone else has pushed to it. A
+# PR that falls behind main is rebased with `@dependabot recreate`, and this
+# job rebuilds again.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-bundle-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Commit the rebuilt bundle and run CI on it
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- dist/bundle.mjs; then
+            echo "Bundle already matches the source."
+            gh workflow run ci.yml --ref "$HEAD_REF"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/bundle.mjs
+          git commit -m "build: rebuild dist/bundle.mjs for the dependency update"
+          git push origin "HEAD:$HEAD_REF"
+          gh workflow run ci.yml --ref "$HEAD_REF"
