@@ -1,0 +1,93 @@
+name: Rebuild bundle for Dependabot
+
+# dist/bundle.mjs is committed (the Claude Code plugin runs it with no npm
+# install), so every dependency bump changes it — and Dependabot does not
+# rebuild it. Without this, each Dependabot PR failed CI's bundle check and
+# waited for someone to rebuild and push by hand (#8, #10).
+#
+# Two jobs, so no dependency code ever runs next to a write token. `build`
+# installs and bundles with a read-only token and no persisted credential — the
+# update may be to esbuild itself, and then the builder is new, unreviewed code.
+# `push` runs no npm and no dependency at all: it takes the built file, commits
+# it, and pushes. The file is only ever committed, never executed, here.
+#
+# A push made with GITHUB_TOKEN starts no workflow, so the job dispatches CI on
+# the rebuilt commit itself; that run is the bundle check for this PR (ci.yml
+# skips its bundle job on Dependabot's own, pre-rebuild commit).
+#
+# Cost: Dependabot stops rebasing a PR once someone else has pushed to it. A
+# PR that falls behind main is rebased with `@dependabot recreate`, and this
+# job rebuilds again.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-bundle-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: dist/bundle.mjs
+          retention-days: 1
+
+  push:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle
+          path: built
+      - name: Commit the rebuilt bundle and run CI on it
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The branch moved since the build (Dependabot rebased): this run's
+          # bundle is for a commit that is no longer the head. The newer
+          # commit's own run handles it.
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+            echo "Branch moved past $HEAD_SHA; leaving it to the newer run."
+            exit 0
+          fi
+          cp built/bundle.mjs dist/bundle.mjs
+          if git diff --quiet -- dist/bundle.mjs; then
+            echo "Bundle already matches the source."
+            gh workflow run ci.yml --ref "$HEAD_REF"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/bundle.mjs
+          git commit -m "build: rebuild dist/bundle.mjs for the dependency update"
+          git push origin "HEAD:$HEAD_REF"
+          gh workflow run ci.yml --ref "$HEAD_REF"

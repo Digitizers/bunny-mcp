@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Dispatched by dependabot-bundle.yml on the commit it pushes: a push made
+  # with GITHUB_TOKEN starts no workflow on its own.
+  workflow_dispatch:
 
 # Both jobs only read the checkout. Spelling that out keeps the GITHUB_TOKEN
 # from carrying whatever the repo default grants (CodeQL flags the omission).
@@ -29,6 +32,11 @@ jobs:
     # The Claude Code plugin runs dist/bundle.mjs, which is committed so a plugin
     # install needs no npm install. A stale bundle would ship old behaviour to
     # every machine silently, so rebuild and fail on any difference.
+    #
+    # Skipped on Dependabot's own commit, which never carries a rebuilt bundle:
+    # dependabot-bundle.yml rebuilds it, pushes, and dispatches this workflow on
+    # the new commit, where this job runs.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
