@@ -125,6 +125,26 @@ describe("bunny-mcp server — BUNNY_READONLY=0", () => {
       assert.ok(names.includes(t), `missing read tool: ${t}`);
     }
   });
+
+  // #13: zod 3 -> 4. A free-form settings object (z.record) must still be
+  // advertised as an object and refused when it is not one, before any request
+  // reaches Bunny.
+  it("advertises a record argument as an object and refuses a non-object", async () => {
+    const { tools } = await client.listTools();
+    const update = tools.find((t) => t.name === "bunny_update_pull_zone");
+    assert.ok(update, "bunny_update_pull_zone is registered");
+    assert.equal(update.inputSchema.properties.settings.type, "object");
+    assert.deepEqual(update.inputSchema.required.sort(), ["id", "settings"]);
+
+    let refused = false;
+    try {
+      const res = await client.callTool({ name: "bunny_update_pull_zone", arguments: { id: 1, settings: "not-an-object" } });
+      refused = res.isError === true && /settings/i.test(JSON.stringify(res.content));
+    } catch (err) {
+      refused = /settings/i.test(String(err && err.message));
+    }
+    assert.ok(refused, "a string for settings must fail input validation");
+  });
 });
 
 // The README's catalog and its counts describe THIS server, and a document that
