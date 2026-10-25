@@ -56,5 +56,11 @@
     "lib/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "overrides": {
+    "follow-redirects": "1.16.1",
+    "body-parser": "2.4.0",
+    "fast-uri": "3.1.9",
+    "ip-address": "10.7.4"
+  }
 }
