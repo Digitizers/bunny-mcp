@@ -39179,7 +39179,7 @@ function loadApiKey(env, readFile) {
 
 // lib/meta.js
 var NAME = "bunny-mcp";
-var VERSION3 = "1.1.0";
+var VERSION3 = "1.1.1";
 var DESCRIPTION = "MCP server for Bunny.net \u2014 secret-redacting and read-only by default. Hardened fork of anvme/bunnycdn-mcp.";
 
 // lib/project.js

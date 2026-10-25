@@ -1,6 +1,6 @@
 {
   "name": "bunny-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "MCP server for Bunny.net — secret-redacting and read-only by default. Hardened fork of anvme/bunnycdn-mcp.",
   "type": "module",
   "bin": {
